@@ -1,0 +1,349 @@
+/* ---------------------------------------------------------
+   Playlist Bridge — design tokens
+   Concept: your playlist as a boarding pass, moving from one
+   platform (origin) to another (destination). Ticket-stub
+   cards, perforated dividers, mono data fields.
+   --------------------------------------------------------- */
+
+:root {
+  --paper: #F3ECD9;       /* warm parchment background */
+  --ink: #1F2A44;         /* deep navy-ink text */
+  --ink-soft: #4A5570;
+  --teal: #1E8F89;        /* primary action */
+  --teal-dark: #146661;
+  --flare: #E8552B;       /* transfer / motion accent */
+  --line: #C9BFA0;        /* hairline / perforation */
+  --card: #FBF8EF;
+  --danger: #B8402B;
+
+  --serif: "Fraunces", Georgia, serif;
+  --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 28px 24px 18px;
+  max-width: 640px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.brand {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
+
+.tagline {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.stage {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 4px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ---------- ticket card ---------- */
+
+.ticket {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 22px 24px;
+  position: relative;
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.ticket.hidden { display: none; }
+
+.ticket.warn {
+  border-color: var(--danger);
+  background: #FBEDE8;
+}
+
+.ticket-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ticket-row.perforated {
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 18px;
+}
+
+.ticket-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.ticket-value {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 20px;
+  text-align: right;
+}
+
+.ticket-copy {
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  font-size: 13.5px;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  padding: 11px 18px;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: var(--teal);
+  color: #FBF8EF;
+}
+.btn-primary:hover { background: var(--teal-dark); }
+.btn-primary:disabled {
+  background: var(--line);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.status {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* ---------- playlist list ---------- */
+
+.playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.playlist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  cursor: pointer;
+  font-size: 13.5px;
+  text-align: left;
+}
+
+.playlist-item:hover { border-color: var(--teal); }
+
+.playlist-item .name {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.playlist-item .count {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* ---------- track preview ---------- */
+
+.track-preview-head {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+.track-list {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border-top: 1px dashed var(--line);
+}
+
+.track-list li {
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.track-list li .t-artist {
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- destinations ---------- */
+
+.dest-grid {
+  border: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dest-grid legend {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  padding: 0;
+  margin-bottom: 8px;
+  grid-column: 1 / -1;
+}
+
+.dest-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  cursor: pointer;
+  background: var(--paper);
+}
+
+.dest-option:has(input:checked) {
+  border-color: var(--flare);
+  background: #FDEDE6;
+}
+
+.dest-option input { accent-color: var(--flare); }
+
+/* ---------- log ---------- */
+
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.log-list li {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+  display: flex;
+  gap: 8px;
+}
+
+.log-list li.ok::before   { content: "✓"; color: var(--teal); }
+.log-list li.err::before  { content: "✕"; color: var(--danger); }
+.log-list li.info::before { content: "·"; color: var(--ink-soft); }
+
+.foot {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 12px;
+  padding: 20px;
+}
+
+code {
+  background: #EFE7CE;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+@media (max-width: 480px) {
+  .dest-grid { grid-template-columns: 1fr; }
+  .ticket-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .ticket-value { text-align: left; }
+}
+
+/* ---------- library check ---------- */
+
+.lib-field {
+  margin-bottom: 16px;
+}
+
+.lib-label {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.lib-field input[type="file"] {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  width: 100%;
+}
+
+.lib-results.hidden { display: none; }
+
+.lib-results {
+  margin-top: 18px;
+  border-top: 1px dashed var(--line);
+  padding-top: 16px;
+}
+
+.lib-download-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.lib-uncertain-list li {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.lib-uncertain-list .t-main {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+}
+
+.lib-uncertain-list .t-candidate {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+

@@ -1,0 +1,2 @@
+(1)(deck@steamdeck ~)$ cd ~/Desktop/playlist-bridge
+(deck@steamdeck playlist-bridge)$ ~/miniserve . -p 9000 --index index.html --interfaces 127.0.0.1

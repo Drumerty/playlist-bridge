@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Playlist Bridge — move your music anywhere</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">Playlist Bridge</div>
+  <div class="tagline">carry your music from one platform to the next</div>
+</header>
+
+<main class="stage">
+
+  <!-- SETUP WARNING (shown if config.js is missing client IDs) -->
+  <section id="setupWarning" class="ticket warn hidden">
+    <div class="ticket-row">
+      <div class="ticket-label">setup needed</div>
+    </div>
+    <p id="setupWarningText">Add your API client IDs to <code>config.js</code> before this will work. See README.md.</p>
+  </section>
+
+  <!-- STEP 1: CONNECT SPOTIFY -->
+  <section id="step-connect" class="ticket">
+    <div class="ticket-row">
+      <div class="ticket-label">origin</div>
+      <div class="ticket-value">Spotify</div>
+    </div>
+    <p class="ticket-copy">Connect your Spotify account to see your playlists.</p>
+    <button id="btnConnectSpotify" class="btn btn-primary">Connect Spotify</button>
+    <div id="spotifyStatus" class="status"></div>
+  </section>
+
+  <!-- STEP 2: CHOOSE PLAYLIST -->
+  <section id="step-playlists" class="ticket hidden">
+    <div class="ticket-row">
+      <div class="ticket-label">boarding</div>
+      <div class="ticket-value">choose a playlist</div>
+    </div>
+    <div id="playlistList" class="playlist-list"></div>
+  </section>
+
+  <!-- STEP 3: TRACK PREVIEW + DESTINATIONS -->
+  <section id="step-destinations" class="ticket hidden">
+    <div class="ticket-row perforated">
+      <div class="ticket-label">destination</div>
+      <div class="ticket-value" id="chosenPlaylistName">—</div>
+    </div>
+
+    <div class="track-preview">
+      <div class="track-preview-head"><span id="trackCount">0</span> tracks</div>
+      <ul id="trackList" class="track-list"></ul>
+    </div>
+
+    <fieldset class="dest-grid">
+      <legend>send to</legend>
+      <label class="dest-option">
+        <input type="checkbox" value="youtube" name="dest" />
+        <span>YouTube Music</span>
+      </label>
+      <label class="dest-option">
+        <input type="checkbox" value="deezer" name="dest" />
+        <span>Deezer</span>
+      </label>
+      <label class="dest-option">
+        <input type="checkbox" value="csv" name="dest" checked />
+        <span>.csv file</span>
+      </label>
+      <label class="dest-option">
+        <input type="checkbox" value="txt" name="dest" />
+        <span>.txt file</span>
+      </label>
+    </fieldset>
+
+    <button id="btnTransfer" class="btn btn-primary">Transfer playlist</button>
+  </section>
+
+  <!-- STEP 4: PROGRESS LOG -->
+  <section id="step-log" class="ticket hidden">
+    <div class="ticket-row">
+      <div class="ticket-label">status</div>
+      <div class="ticket-value">transfer log</div>
+    </div>
+    <ul id="logList" class="log-list"></ul>
+  </section>
+
+  <!-- LIBRARY CHECK: compare a local folder against a playlist -->
+  <section id="step-library" class="ticket">
+    <div class="ticket-row">
+      <div class="ticket-label">library check</div>
+      <div class="ticket-value">what's missing locally</div>
+    </div>
+    <p class="ticket-copy">
+      Compare a local music folder against a playlist to see which tracks you don't have yet.
+      Nothing here leaves your browser — files are only read to check their names.
+    </p>
+
+    <div class="lib-field">
+      <label class="lib-label">1. Your local folder</label>
+      <input type="file" id="libFolderInput" webkitdirectory directory multiple />
+      <div id="libFolderStatus" class="status"></div>
+    </div>
+
+    <div class="lib-field">
+      <label class="lib-label">2. Playlist to check against</label>
+      <div id="libSourceHint" class="status"></div>
+      <input type="file" id="libPlaylistInput" accept=".csv,.txt" />
+      <div id="libPlaylistStatus" class="status"></div>
+    </div>
+
+    <button id="btnCompareLibrary" class="btn btn-primary">Compare library</button>
+
+    <div id="libResults" class="lib-results hidden">
+      <div class="track-preview-head">
+        <span id="libMissingCount">0</span> missing ·
+        <span id="libUncertainCount">0</span> uncertain ·
+        <span id="libTotalCount">0</span> total
+      </div>
+
+      <p class="ticket-copy" style="margin-top:10px;">Missing — no plausible local file found:</p>
+      <ul id="libMissingList" class="track-list"></ul>
+      <div class="lib-download-row">
+        <button id="btnDownloadMissingCsv" class="btn btn-primary">Download missing.csv</button>
+        <button id="btnDownloadMissingTxt" class="btn btn-primary">Download missing.txt</button>
+      </div>
+
+      <p class="ticket-copy" style="margin-top:18px;">Uncertain — a local file looks close but isn't a confident match, worth checking by ear:</p>
+      <ul id="libUncertainList" class="track-list lib-uncertain-list"></ul>
+      <div class="lib-download-row">
+        <button id="btnDownloadUncertainCsv" class="btn btn-primary">Download uncertain_matches.csv</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  Runs entirely in your browser. Your Spotify, YouTube, and Deezer credentials never touch a server you don't control.
+</footer>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

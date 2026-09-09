@@ -1,0 +1,8 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Type=Application
+Name=Playlist Bridge
+Comment=Move Spotify playlists to YouTube Music, Deezer, CSV, TXT
+Exec=bash -c "cd /home/deck/playlist-bridge-web && ./run-steamdeck.sh"
+Terminal=true
+Categories=AudioVideo;Audio;
