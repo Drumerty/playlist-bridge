@@ -17,14 +17,18 @@
 
 <main class="stage">
 
-  <!-- SETTINGS: edit client IDs without touching config.js -->
-  <section id="step-settings" class="ticket">
-    <div class="ticket-row">
-      <div class="ticket-label">settings</div>
-      <div class="ticket-value">API credentials</div>
-    </div>
-    <p class="ticket-copy">
+  <!-- SETTINGS: edit client IDs without touching config.js. Collapsed by
+       default — these IDs aren't secrets (no client secret is ever used,
+       that's the point of PKCE), but there's no reason to show them by default. -->
+  <details id="step-settings" class="ticket settings-details">
+    <summary class="settings-summary">
+      <span class="ticket-label">settings</span>
+      <span class="ticket-value">API credentials</span>
+    </summary>
+
+    <p class="ticket-copy" style="margin-top:14px;">
       Saved only in this browser (localStorage) — never sent anywhere but the provider you're connecting to.
+      These are public Client IDs, not secrets — this app never uses a client secret — but feel free to keep them tucked away here regardless.
     </p>
 
     <div class="settings-grid">
@@ -48,7 +52,7 @@
 
     <button id="btnSaveSettings" class="btn btn-primary">Save settings</button>
     <div id="settingsStatus" class="status"></div>
-  </section>
+  </details>
 
   <!-- SETUP WARNING (shown if any client ID is still a placeholder) -->
   <section id="setupWarning" class="ticket warn hidden">

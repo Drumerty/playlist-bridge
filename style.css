@@ -383,6 +383,45 @@ code {
 
 /* ---------- settings panel ---------- */
 
+/* ---------- settings panel (collapsible) ---------- */
+
+.settings-details {
+  padding: 0;
+}
+
+.settings-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 24px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-summary::-webkit-details-marker { display: none; }
+
+.settings-summary::after {
+  content: "show ▾";
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-left: auto;
+  order: 3;
+}
+
+.settings-details[open] .settings-summary::after {
+  content: "hide ▴";
+}
+
+.settings-details > *:not(.settings-summary) {
+  padding: 0 24px 22px;
+}
+
+.settings-details[open] .settings-summary {
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 4px;
+}
+
 .settings-grid {
   display: flex;
   flex-direction: column;
