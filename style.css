@@ -217,6 +217,38 @@ body {
   text-overflow: ellipsis;
 }
 
+.track-row {
+  align-items: center;
+}
+
+.track-row [contenteditable="true"] {
+  outline: none;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+.track-row [contenteditable="true"]:hover {
+  background: #EFE7CE;
+}
+
+.track-row [contenteditable="true"]:focus {
+  background: #FDEDE6;
+  box-shadow: 0 0 0 1px var(--flare);
+}
+
+.t-link {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.t-link:hover {
+  color: var(--flare);
+}
+
 /* ---------- destinations ---------- */
 
 .dest-grid {

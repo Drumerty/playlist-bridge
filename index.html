@@ -90,7 +90,7 @@
     </div>
 
     <div class="track-preview">
-      <div class="track-preview-head"><span id="trackCount">0</span> tracks</div>
+      <div class="track-preview-head"><span id="trackCount">0</span> tracks — click any title/artist to fix it, ↗ opens the track on Spotify</div>
       <ul id="trackList" class="track-list"></ul>
     </div>
 
@@ -105,8 +105,12 @@
         <span>Deezer</span>
       </label>
       <label class="dest-option">
-        <input type="checkbox" value="csv" name="dest" checked />
-        <span>.csv file</span>
+        <input type="checkbox" value="csv" name="dest" />
+        <span>.csv file (full: +album, ISRC, link)</span>
+      </label>
+      <label class="dest-option">
+        <input type="checkbox" value="csv-simple" name="dest" checked />
+        <span>.csv file (simple: title + artist)</span>
       </label>
       <label class="dest-option">
         <input type="checkbox" value="txt" name="dest" />

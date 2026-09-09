@@ -149,6 +149,22 @@ buckets, both explained in the Library check block itself:
   filename and a rough match score are shown so you can verify by ear rather
   than the tool silently guessing wrong.
 
+## Two CSV formats
+
+- **Simple** (`playlistname_simple.csv`) — just Title and Artist, two columns, nothing else. This is the plain "what Spotify shows while playing" view, same information as the .txt export but in spreadsheet form. Checked by default.
+- **Full** (`playlistname.csv`) — adds Album, ISRC, and a direct Spotify link per track, useful mainly for tracking down tracks with garbled source metadata (see below).
+
+You can check both boxes at once if you want both.
+
+## Garbled artist/title names (e.g. a label name instead of an artist)
+
+Some tracks — especially stock/production-music catalogs, mood or ambient background-music playlists — genuinely have bad metadata *at the source*. Spotify's own catalog has the business/label name in the artist field and junk text in the title; the app is just displaying exactly what Spotify's API returns, there's no "correct" name being missed.
+
+Two things help:
+- Each track preview row has a small **↗** link to open that exact track on Spotify, so you can at least confirm what Spotify itself shows.
+- **Click directly on any title or artist in the preview list to edit it.** Your correction updates immediately and flows into every export/transfer for that track — CSV, TXT, YouTube, and Deezer all read from the same corrected data, so you only need to fix a name once.
+- The CSV export also includes an **ISRC** column (a track's industry-standard recording code) and the Spotify link, which can help you look the real track up on a site like MusicBrainz if the Spotify data alone isn't enough.
+
 ## A Spotify limitation you'll hit
 
 

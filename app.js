@@ -207,7 +207,7 @@ async function selectPlaylist(pl) {
   // on — for anything else (e.g. Spotify's own editorial/algorithmic
   // playlists like Discover Weekly or genre mixes) it returns 403
   // with no workaround on the API side.
-  let url = `https://api.spotify.com/v1/playlists/${pl.id}/items?fields=items(item(name,artists(name),album(name))),next&limit=100`;
+  let url = `https://api.spotify.com/v1/playlists/${pl.id}/items?fields=items(item(id,name,artists(name),album(name),external_ids(isrc))),next&limit=100`;
   const tracks = [];
 
   try {
@@ -235,6 +235,8 @@ async function selectPlaylist(pl) {
           title: t.name,
           artist: Array.isArray(t.artists) ? t.artists.map((a) => a.name).join(", ") : "Unknown Artist",
           album: t.album?.name || "",
+          isrc: t.external_ids?.isrc || "",
+          spotifyUrl: t.id ? `https://open.spotify.com/track/${t.id}` : "",
         });
       }
       url = data.next;
@@ -250,13 +252,35 @@ function renderTrackPreview() {
   $("trackCount").textContent = state.tracks.length;
   const list = $("trackList");
   list.innerHTML = "";
-  state.tracks.forEach((t) => {
+  state.tracks.forEach((t, idx) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="t-title">${escapeHtml(t.title)}</span><span class="t-artist">${escapeHtml(t.artist)}</span>`;
+    li.className = "track-row";
+    const linkHtml = t.spotifyUrl
+      ? `<a href="${t.spotifyUrl}" target="_blank" rel="noopener" class="t-link" title="Open on Spotify to check the real metadata">↗</a>`
+      : "";
+    li.innerHTML = `
+      <span class="t-title" contenteditable="true" data-idx="${idx}" data-field="title">${escapeHtml(t.title)}</span>
+      <span class="t-artist" contenteditable="true" data-idx="${idx}" data-field="artist">${escapeHtml(t.artist)}</span>
+      ${linkHtml}
+    `;
     list.appendChild(li);
   });
   updateLibSourceUI();
 }
+
+// Track edits made directly in the preview list flow into state.tracks,
+// so a manual fix to garbled metadata (common with stock/production-music
+// tracks whose source data is just bad) carries through to every export
+// and every transfer destination — not just one of them.
+document.addEventListener("blur", (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches("[data-field]")) return;
+  const idx = Number(el.dataset.idx);
+  const field = el.dataset.field;
+  if (state.tracks[idx]) {
+    state.tracks[idx][field] = el.textContent.trim();
+  }
+}, true);
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -277,14 +301,23 @@ function downloadBlob(filename, content, mime) {
   URL.revokeObjectURL(a.href);
 }
 
+function csvFrom(rows) {
+  return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+}
+
 function exportCsv() {
-  const rows = [["Title", "Artist", "Album"]];
-  state.tracks.forEach((t) => rows.push([t.title, t.artist, t.album]));
-  const csv = rows
-  .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-  .join("\r\n");
+  const rows = [["Title", "Artist", "Album", "ISRC", "Spotify Link"]];
+  state.tracks.forEach((t) => rows.push([t.title, t.artist, t.album, t.isrc || "", t.spotifyUrl || ""]));
   const name = safeFileName(state.chosenPlaylist.name) + ".csv";
-  downloadBlob(name, csv, "text/csv");
+  downloadBlob(name, csvFrom(rows), "text/csv");
+  log(`Saved ${name}`, "ok");
+}
+
+function exportCsvSimple() {
+  const rows = [["Title", "Artist"]];
+  state.tracks.forEach((t) => rows.push([t.title, t.artist]));
+  const name = safeFileName(state.chosenPlaylist.name) + "_simple.csv";
+  downloadBlob(name, csvFrom(rows), "text/csv");
   log(`Saved ${name}`, "ok");
 }
 
@@ -700,6 +733,7 @@ async function runTransfer() {
     const label = document.querySelector(`.dest-option input[value="${dest}"]`).closest(".dest-option");
     try {
       if (dest === "csv") { exportCsv(); label.classList.add("result-ok"); }
+      else if (dest === "csv-simple") { exportCsvSimple(); label.classList.add("result-ok"); }
       else if (dest === "txt") { exportTxt(); label.classList.add("result-ok"); }
       else if (dest === "youtube") {
         const { added, missed } = await transferToYoutube();
