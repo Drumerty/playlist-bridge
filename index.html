@@ -17,12 +17,45 @@
 
 <main class="stage">
 
-  <!-- SETUP WARNING (shown if config.js is missing client IDs) -->
+  <!-- SETTINGS: edit client IDs without touching config.js -->
+  <section id="step-settings" class="ticket">
+    <div class="ticket-row">
+      <div class="ticket-label">settings</div>
+      <div class="ticket-value">API credentials</div>
+    </div>
+    <p class="ticket-copy">
+      Saved only in this browser (localStorage) — never sent anywhere but the provider you're connecting to.
+    </p>
+
+    <div class="settings-grid">
+      <label class="settings-field">
+        <span>Spotify Client ID</span>
+        <input type="text" id="cfgSpotifyId" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="settings-field">
+        <span>Google (YouTube) Client ID</span>
+        <input type="text" id="cfgGoogleId" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="settings-field">
+        <span>Deezer Application ID</span>
+        <input type="text" id="cfgDeezerId" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="settings-field">
+        <span>Redirect URI to register with each provider</span>
+        <input type="text" id="cfgRedirectUri" readonly />
+      </label>
+    </div>
+
+    <button id="btnSaveSettings" class="btn btn-primary">Save settings</button>
+    <div id="settingsStatus" class="status"></div>
+  </section>
+
+  <!-- SETUP WARNING (shown if any client ID is still a placeholder) -->
   <section id="setupWarning" class="ticket warn hidden">
     <div class="ticket-row">
       <div class="ticket-label">setup needed</div>
     </div>
-    <p id="setupWarningText">Add your API client IDs to <code>config.js</code> before this will work. See README.md.</p>
+    <p id="setupWarningText">Add your API client IDs above before this will work.</p>
   </section>
 
   <!-- STEP 1: CONNECT SPOTIFY -->
@@ -108,8 +141,18 @@
 
     <div class="lib-field">
       <label class="lib-label">2. Playlist to check against</label>
+      <div class="lib-source-toggle">
+        <label>
+          <input type="radio" name="libSource" value="session" id="libSourceSession" checked />
+          Use the playlist loaded above directly
+        </label>
+        <label>
+          <input type="radio" name="libSource" value="upload" id="libSourceUpload" />
+          Upload a .csv/.txt export instead
+        </label>
+      </div>
       <div id="libSourceHint" class="status"></div>
-      <input type="file" id="libPlaylistInput" accept=".csv,.txt" />
+      <input type="file" id="libPlaylistInput" accept=".csv,.txt" class="hidden" />
       <div id="libPlaylistStatus" class="status"></div>
     </div>
 

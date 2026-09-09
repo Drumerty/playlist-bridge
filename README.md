@@ -8,6 +8,26 @@ A single-page web app that reads your Spotify playlists and sends them to:
 
 Everything runs in the browser. There's no backend server, and no credentials are stored anywhere but your own browser session.
 
+## Editing your API IDs (no more config.js edits)
+
+There's a **Settings** panel at the top of the page now. Paste your Spotify/Google/Deezer IDs in there and hit **Save settings** — they're stored in this browser's local storage and used immediately, overriding whatever's in `config.js`. `config.js` is now just the first-run fallback; you shouldn't need to open it again unless you're changing the Redirect URI itself (which still has to match wherever this is actually hosted, so that one stays in the file).
+
+Note this is per-browser: if you open the app in a different browser or clear site data, you'll need to re-enter the IDs there too.
+
+## Library check: direct comparison vs upload
+
+The Library check section now has an explicit toggle:
+- **"Use the playlist loaded above directly"** (default) — compares your local folder straight against whatever playlist you picked from Spotify in this session. No CSV/TXT export or upload needed.
+- **"Upload a .csv/.txt export instead"** — useful if you want to check a playlist without re-connecting Spotify, using a file exported earlier.
+
+Either way, the missing/uncertain results are still downloadable as CSV — that export was never about the *source* of the comparison, only its *output*, so it's untouched by this toggle.
+
+## Visual highlighting
+
+- Spotify connection status turns green on success, red on failure.
+- After a transfer, each destination checkbox is tinted: green (fully added), amber (partially added — some tracks couldn't be matched), or red (failed outright).
+- In Library check, **missing** rows have a red left border, **uncertain** rows an amber one, so you can scan the list at a glance.
+
 ## Files
 
 ```

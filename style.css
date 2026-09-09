@@ -20,6 +20,8 @@
   --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
 }
 
+.hidden { display: none; }
+
 * { box-sizing: border-box; }
 
 body {
@@ -345,5 +347,89 @@ code {
 .lib-uncertain-list .t-candidate {
   font-size: 11.5px;
   color: var(--ink-soft);
+}
+
+/* ---------- status text highlighting ---------- */
+
+.status-ok { color: var(--teal-dark); font-weight: 500; }
+.status-err { color: var(--danger); font-weight: 500; }
+.status-info { color: var(--ink-soft); }
+
+/* ---------- destination result highlighting (after transfer) ---------- */
+
+.dest-option.result-ok {
+  border-color: var(--teal);
+  background: #E6F3F1;
+}
+.dest-option.result-partial {
+  border-color: #C98A1E;
+  background: #FBF1DE;
+}
+.dest-option.result-fail {
+  border-color: var(--danger);
+  background: #FBEDE8;
+}
+
+/* ---------- library row highlighting ---------- */
+
+#libMissingList li {
+  border-left: 3px solid var(--danger);
+  padding-left: 8px;
+}
+#libUncertainList li {
+  border-left: 3px solid #C98A1E;
+  padding-left: 8px;
+}
+
+/* ---------- settings panel ---------- */
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.settings-field span {
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+.settings-field input {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.settings-field input:read-only {
+  color: var(--ink-soft);
+  background: #EFE7CE;
+}
+
+/* ---------- library source toggle ---------- */
+
+.lib-source-toggle {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.lib-source-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 

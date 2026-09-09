@@ -1,9 +1,12 @@
 // ---------------------------------------------------------
-// Playlist Bridge — configuration
+// Playlist Bridge — configuration defaults
 //
-// Fill these in with credentials from each provider's own
-// developer dashboard. Nobody but you can generate these —
-// they're tied to your app registration and redirect URI.
+// These are just FIRST-RUN DEFAULTS. Once the page loads, use the
+// "Settings" panel at the top of the app to edit your Client IDs —
+// they're saved in this browser's local storage and take priority
+// over anything here. You should not need to edit this file again
+// after the first deploy, except to change REDIRECT_URI itself
+// (which must always match wherever this is actually hosted).
 //
 //   Spotify : https://developer.spotify.com/dashboard
 //             -> Create app -> add REDIRECT_URI below as a
@@ -23,14 +26,11 @@
 //                REDIRECT_URI -> copy the Application ID
 //
 // If you're running this via server.py / run-mac.command /
-// run-steamdeck.sh (recommended), REDIRECT_URI below is fixed to a
-// specific local port — register that SAME URL with every provider,
-// on every machine you use. That's the whole point: it never has to
-// change again, no matter which computer you're on.
+// run-steamdeck.sh, REDIRECT_URI below should be a fixed local port —
+// register that SAME URL with every provider, on every machine you use.
 //
-// If instead you're hosting this on a real domain (GitHub Pages etc.),
-// swap the line below back to:
-//   REDIRECT_URI: window.location.origin + window.location.pathname,
+// If hosting this on a real domain (GitHub Pages etc.), REDIRECT_URI
+// should be that domain's exact URL to index.html.
 // ---------------------------------------------------------
 
 window.PB_CONFIG = {

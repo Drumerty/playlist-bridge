@@ -3,7 +3,30 @@
 // Everything runs client-side. No backend, no stored secrets.
 // ---------------------------------------------------------
 
-const CFG = window.PB_CONFIG;
+// ---------------------------------------------------------
+// CONFIG — defaults come from config.js, but any value saved in the
+// Settings panel (stored in localStorage) takes priority. This means
+// you edit your Client IDs on the page itself, never in a file.
+// ---------------------------------------------------------
+
+const SETTINGS_STORAGE_KEY = "pb_settings_overrides";
+
+function loadSettingsOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveSettingsOverrides(overrides) {
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(overrides));
+}
+
+// CFG is a live object: settings saved later mutate it in place, so
+// every function that reads CFG.SPOTIFY_CLIENT_ID etc. always sees
+// the latest value without needing to re-fetch anything.
+const CFG = Object.assign({}, window.PB_CONFIG, loadSettingsOverrides());
 
 // -------- tiny state --------
 const state = {
@@ -19,6 +42,13 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 function show(id) { $(id).classList.remove("hidden"); }
+
+function setStatus(el, text, kind = "info") {
+  el.textContent = text;
+  el.classList.remove("status-ok", "status-err", "status-info");
+  el.classList.add("status-" + kind);
+}
+
 function log(msg, kind = "info") {
   show("step-log");
   const li = document.createElement("li");
@@ -35,10 +65,31 @@ function checkSetup() {
   if (!CFG.DEEZER_APP_ID || CFG.DEEZER_APP_ID.startsWith("YOUR_")) missing.push("Deezer");
   if (missing.length) {
     $("setupWarningText").textContent =
-    `Missing client ID(s) for: ${missing.join(", ")}. You can still try Spotify + file export ` +
-    `if only those are filled in — see config.js and README.md.`;
+      `Missing client ID(s) for: ${missing.join(", ")}. You can still try Spotify + file export ` +
+      `if only those are filled in — fill the rest in above, in Settings.`;
     show("setupWarning");
+  } else {
+    $("setupWarning").classList.add("hidden");
   }
+}
+
+function populateSettingsForm() {
+  $("cfgSpotifyId").value = CFG.SPOTIFY_CLIENT_ID.startsWith("YOUR_") ? "" : CFG.SPOTIFY_CLIENT_ID;
+  $("cfgGoogleId").value = CFG.GOOGLE_CLIENT_ID.startsWith("YOUR_") ? "" : CFG.GOOGLE_CLIENT_ID;
+  $("cfgDeezerId").value = CFG.DEEZER_APP_ID.startsWith("YOUR_") ? "" : CFG.DEEZER_APP_ID;
+  $("cfgRedirectUri").value = CFG.REDIRECT_URI;
+}
+
+function saveSettingsForm() {
+  const overrides = {
+    SPOTIFY_CLIENT_ID: $("cfgSpotifyId").value.trim() || CFG.SPOTIFY_CLIENT_ID,
+    GOOGLE_CLIENT_ID: $("cfgGoogleId").value.trim() || CFG.GOOGLE_CLIENT_ID,
+    DEEZER_APP_ID: $("cfgDeezerId").value.trim() || CFG.DEEZER_APP_ID,
+  };
+  Object.assign(CFG, overrides); // mutate in place — every function sees this immediately
+  saveSettingsOverrides(overrides);
+  setStatus($("settingsStatus"), "Saved to this browser.", "ok");
+  checkSetup();
 }
 
 // ===========================================================
@@ -111,7 +162,7 @@ async function spotifyFetch(url) {
 }
 
 async function loadSpotifyPlaylists() {
-  $("spotifyStatus").textContent = "Loading playlists…";
+  setStatus($("spotifyStatus"), "Loading playlists…", "info");
   let url = "https://api.spotify.com/v1/me/playlists?limit=50";
   const all = [];
   while (url) {
@@ -123,7 +174,7 @@ async function loadSpotifyPlaylists() {
   }
   state.playlists = all;
   renderPlaylists();
-  $("spotifyStatus").textContent = `Connected — ${all.length} playlists found.`;
+  setStatus($("spotifyStatus"), `Connected — ${all.length} playlists found.`, "ok");
   show("step-playlists");
 }
 
@@ -204,6 +255,7 @@ function renderTrackPreview() {
     li.innerHTML = `<span class="t-title">${escapeHtml(t.title)}</span><span class="t-artist">${escapeHtml(t.artist)}</span>`;
     list.appendChild(li);
   });
+  updateLibSourceUI();
 }
 
 function escapeHtml(s) {
@@ -332,6 +384,7 @@ async function transferToYoutube() {
     await sleep(150);
   }
   log(`YouTube: ${added} added, ${missed} missed.`, missed ? "info" : "ok");
+  return { added, missed };
 }
 
 // ===========================================================
@@ -395,6 +448,7 @@ async function transferToDeezer() {
     await deezerApi(`/playlist/${playlistId}/tracks`, "POST", { songs: trackIds.join(",") });
   }
   log(`Deezer: ${trackIds.length} added, ${missed} missed.`, missed ? "info" : "ok");
+  return { added: trackIds.length, missed };
 }
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
@@ -502,17 +556,33 @@ async function handleLibraryPlaylistInput(e) {
   $("libPlaylistStatus").textContent = `Loaded ${tracks.length} tracks from ${file.name}.`;
 }
 
+function updateLibSourceUI() {
+  const useUpload = $("libSourceUpload").checked;
+  $("libPlaylistInput").classList.toggle("hidden", !useUpload);
+  if (useUpload) {
+    $("libSourceHint").textContent = "";
+  } else if (state.tracks.length) {
+    const name = state.chosenPlaylist ? state.chosenPlaylist.name : "the loaded playlist";
+    setStatus($("libSourceHint"), `Will compare directly against "${name}" (${state.tracks.length} tracks) — no export/upload needed.`, "ok");
+  } else {
+    setStatus($("libSourceHint"), "No playlist loaded yet — pick one above, or switch to upload a file.", "info");
+  }
+}
+
 async function compareLibrary() {
-  // Prefer an uploaded file if one was provided; otherwise fall back
-  // to whatever playlist is currently loaded from the Spotify session.
-  const tracks = libState.playlistTracks.length ? libState.playlistTracks : state.tracks;
+  const useUpload = $("libSourceUpload").checked;
+  const tracks = useUpload ? libState.playlistTracks : state.tracks;
 
   if (!libState.localFilenames.length) {
     log("Pick a local folder first.", "err");
     return;
   }
-  if (!tracks.length) {
-    log("No playlist loaded — connect Spotify and pick a playlist, or upload a .csv/.txt export.", "err");
+  if (useUpload && !tracks.length) {
+    log("Upload a .csv or .txt export first, or switch to using the loaded playlist.", "err");
+    return;
+  }
+  if (!useUpload && !tracks.length) {
+    log("No playlist loaded — connect Spotify and pick a playlist above, or switch to upload a file.", "err");
     return;
   }
 
@@ -611,9 +681,15 @@ function downloadUncertainCsv() {
 // ===========================================================
 
 async function runTransfer() {
-  const dests = Array.from(document.querySelectorAll('input[name="dest"]:checked')).map((el) => el.value);
+  const checkedBoxes = Array.from(document.querySelectorAll('input[name="dest"]:checked'));
+  const dests = checkedBoxes.map((el) => el.value);
   if (!dests.length) { log("Pick at least one destination.", "err"); return; }
   if (!state.tracks.length) { log("This playlist has no tracks to transfer.", "err"); return; }
+
+  // clear any highlighting left over from a previous run
+  document.querySelectorAll(".dest-option").forEach((el) =>
+    el.classList.remove("result-ok", "result-partial", "result-fail")
+  );
 
   $("btnTransfer").disabled = true;
   show("step-log");
@@ -621,13 +697,20 @@ async function runTransfer() {
   log(`Starting transfer of "${state.chosenPlaylist.name}" (${state.tracks.length} tracks)…`);
 
   for (const dest of dests) {
+    const label = document.querySelector(`.dest-option input[value="${dest}"]`).closest(".dest-option");
     try {
-      if (dest === "csv") exportCsv();
-      else if (dest === "txt") exportTxt();
-      else if (dest === "youtube") await transferToYoutube();
-      else if (dest === "deezer") await transferToDeezer();
+      if (dest === "csv") { exportCsv(); label.classList.add("result-ok"); }
+      else if (dest === "txt") { exportTxt(); label.classList.add("result-ok"); }
+      else if (dest === "youtube") {
+        const { added, missed } = await transferToYoutube();
+        label.classList.add(missed === 0 ? "result-ok" : added > 0 ? "result-partial" : "result-fail");
+      } else if (dest === "deezer") {
+        const { added, missed } = await transferToDeezer();
+        label.classList.add(missed === 0 ? "result-ok" : added > 0 ? "result-partial" : "result-fail");
+      }
     } catch (err) {
       log(`${dest}: ${err.message}`, "err");
+      label.classList.add("result-fail");
     }
   }
 
@@ -641,17 +724,21 @@ async function runTransfer() {
 
 function init() {
   checkSetup();
+  populateSettingsForm();
 
+  $("btnSaveSettings").addEventListener("click", saveSettingsForm);
   $("btnConnectSpotify").addEventListener("click", connectSpotify);
   $("btnTransfer").addEventListener("click", runTransfer);
 
   $("libFolderInput").addEventListener("change", handleLibraryFolderInput);
   $("libPlaylistInput").addEventListener("change", handleLibraryPlaylistInput);
+  $("libSourceSession").addEventListener("change", updateLibSourceUI);
+  $("libSourceUpload").addEventListener("change", updateLibSourceUI);
   $("btnCompareLibrary").addEventListener("click", compareLibrary);
   $("btnDownloadMissingCsv").addEventListener("click", downloadMissingCsv);
   $("btnDownloadMissingTxt").addEventListener("click", downloadMissingTxt);
   $("btnDownloadUncertainCsv").addEventListener("click", downloadUncertainCsv);
-  $("libSourceHint").textContent = "Uses your uploaded file if provided, otherwise the playlist currently loaded above.";
+  updateLibSourceUI();
 
   // Handle Spotify redirect back with ?code=...
   const params = new URLSearchParams(window.location.search);
@@ -659,8 +746,8 @@ function init() {
   if (code) {
     window.history.replaceState({}, "", CFG.REDIRECT_URI);
     exchangeSpotifyCode(code)
-    .then(loadSpotifyPlaylists)
-    .catch((err) => { $("spotifyStatus").textContent = "Spotify connection failed: " + err.message; });
+      .then(loadSpotifyPlaylists)
+      .catch((err) => { setStatus($("spotifyStatus"), "Spotify connection failed: " + err.message, "err"); });
   }
 }
 
