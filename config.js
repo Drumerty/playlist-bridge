@@ -34,7 +34,7 @@
 // ---------------------------------------------------------
 
 window.PB_CONFIG = {
-  REDIRECT_URI: "http://127.0.0.1:17845/index.html",
+  REDIRECT_URI: "https://drumerty.github.io/playlist-bridge/index.html",
 
   SPOTIFY_CLIENT_ID: "0a4ecebc70d646d480d8e4d05540972a",
 
