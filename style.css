@@ -35,13 +35,94 @@ body {
 
 .topbar {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   padding: 28px 24px 18px;
   max-width: 640px;
   margin: 0 auto;
+  gap: 4px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   flex-wrap: wrap;
-  gap: 6px;
+}
+
+.version-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--teal-dark);
+  background: #E6F3F1;
+  border: 1px solid var(--teal);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.changelog-details {
+  margin-top: 6px;
+}
+
+.changelog-summary {
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+
+.changelog-summary::-webkit-details-marker { display: none; }
+
+.changelog-summary::before {
+  content: "▾ ";
+}
+
+.changelog-details[open] .changelog-summary::before {
+  content: "▴ ";
+}
+
+.changelog-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.changelog-entry {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.changelog-entry:last-child { border-bottom: none; }
+
+.changelog-version {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+
+.changelog-date {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.changelog-notes {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--ink-soft);
+}
+
+.changelog-notes li {
+  margin-bottom: 3px;
 }
 
 .brand {

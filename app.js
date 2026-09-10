@@ -4,6 +4,59 @@
 // ---------------------------------------------------------
 
 // ---------------------------------------------------------
+// VERSION / CHANGELOG
+// Bump APP_VERSION and prepend an entry to CHANGELOG here with every
+// change that ships. This array is the source of truth for the "what's
+// new" panel in the header; CHANGELOG.md mirrors it for the repo — keep
+// both in sync when you add an entry.
+// ---------------------------------------------------------
+
+const APP_VERSION = "1.2.0";
+
+const CHANGELOG = [
+  {
+    version: "1.2.0",
+    date: "2026-09-10",
+    notes: [
+      'Fixed: exports and the track preview now show only the primary artist (e.g. "Skeler, Devilish Trio" \u2192 "Skeler") instead of every credited artist joined with commas.',
+      "Added: version number and a \"what's new\" changelog panel at the top of the page.",
+    ],
+  },
+  {
+    version: "1.1.0",
+    date: "2026-09-10",
+    notes: [
+      "Search queries sent to YouTube, Deezer, and the iTunes/MusicBrainz auto-fix lookups now strip periods/hyphens and use only the primary artist, improving match rates.",
+    ],
+  },
+  {
+    version: "1.0.0",
+    date: "2026-09-10",
+    notes: [
+      "Initial release: Spotify \u2192 YouTube Music / Deezer / CSV / TXT transfer, in-page Settings panel for API IDs, Library Check against a local folder, auto-fix names via MusicBrainz/iTunes/Deezer, noisy-tag cleanup toggle, garbled-metadata editing, standalone local-server mode for Steam Deck/macOS.",
+    ],
+  },
+];
+
+function renderVersionInfo() {
+  const badge = $("versionBadge");
+  if (badge) badge.textContent = "v" + APP_VERSION;
+
+  const list = $("changelogList");
+  if (!list) return;
+  list.innerHTML = "";
+  CHANGELOG.forEach((entry) => {
+    const li = document.createElement("li");
+    li.className = "changelog-entry";
+    const notesHtml = entry.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
+    li.innerHTML =
+      `<div class="changelog-version">v${escapeHtml(entry.version)} <span class="changelog-date">${escapeHtml(entry.date)}</span></div>` +
+      `<ul class="changelog-notes">${notesHtml}</ul>`;
+    list.appendChild(li);
+  });
+}
+
+// ---------------------------------------------------------
 // CONFIG — defaults come from config.js, but any value saved in the
 // Settings panel (stored in localStorage) takes priority. This means
 // you edit your Client IDs on the page itself, never in a file.
@@ -333,12 +386,13 @@ function cleanTitleText(title) {
 }
 
 function cleanArtistText(artist) {
-  // Standardize separators between multiple artists to ", " and trim.
-  return String(artist)
-    .split(/\s*[,&/]\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+/i)
-    .filter(Boolean)
-    .join(", ")
-    .trim() || artist;
+  // Reduce to the primary/lead artist only. Multiple credited artists
+  // joined with a comma, "&", "/", "feat.", "x", "vs." etc. (e.g. "Skeler,
+  // Devilish Trio") used to just get their separators standardized and
+  // all of them kept — that's what was still showing up in exports and
+  // the preview list. Now only the first name is kept, same as what's
+  // already used for building search queries below.
+  return primaryArtist(artist);
 }
 
 function isCleanupEnabled() {
@@ -347,13 +401,10 @@ function isCleanupEnabled() {
 }
 
 // ---------- search-query optimization ----------
-// These two helpers build an artist+title string tuned for *external
-// search APIs* (YouTube, Deezer, iTunes) and the local Library Check
-// comparison. They're deliberately separate from cleanArtistText() /
-// cleanTitleText() above: those control what gets shown in the editable
-// preview and written to CSV/TXT exports, and shouldn't silently drop a
-// featured artist a user might want on record. This only affects the
-// string handed to a search box, so it can be more aggressive.
+// primaryArtist() is shared by cleanArtistText() above (what's shown/
+// exported) and buildSearchQuery() below (what's sent to search APIs).
+// searchFriendly() is search-only — export/preview text keeps its
+// original punctuation.
 
 function primaryArtist(artist) {
   // "La Bouche, Justus" / "La Bouche feat. Justus" often searches worse
@@ -993,6 +1044,7 @@ async function runTransfer() {
 // ===========================================================
 
 function init() {
+  renderVersionInfo();
   checkSetup();
   populateSettingsForm();
 

@@ -31,13 +31,23 @@ Either way, the missing/uncertain results are still downloadable as CSV — that
 ## Files
 
 ```
-index.html    the page
-style.css     styling
-app.js        all the logic (auth, fetching, exporting, transferring)
-config.js     <- put your API client IDs here
-channel.html  required by the Deezer SDK, don't rename or remove
-README.md     this file
+index.html     the page
+style.css      styling
+app.js         all the logic (auth, fetching, exporting, transferring)
+config.js      <- put your API client IDs here
+channel.html   required by the Deezer SDK, don't rename or remove
+README.md      this file
+CHANGELOG.md   version history (mirrors the panel in the app header)
 ```
+
+## Version & changelog
+
+The header shows the current version (e.g. `v1.2.0`) next to the title, with
+a "what's new" dropdown listing recent changes. That list lives in the
+`CHANGELOG` array at the top of `app.js`; `CHANGELOG.md` is a plain-text
+copy for the repo. Whenever a change ships, bump `APP_VERSION` and add an
+entry to both.
+
 
 ## 1. Host it somewhere with HTTPS
 
@@ -161,15 +171,15 @@ Under the track preview, there's an **"Auto-fix names (MusicBrainz → iTunes �
 
 **Why three services:** MusicBrainz catches well-known commercial releases via ISRC but misses newer indie/self-released tracks and has gaps in stock music. iTunes and Deezer catch different gaps via text search, so the three together give you the best shot at clean data without needing credentials, login, or paid APIs.
 
-### Search-query cleanup (new)
+### Search-query cleanup
 
-Every text search this app makes on your behalf — YouTube Music, Deezer transfer/search, iTunes/Deezer auto-fix lookups — now goes through an extra cleanup pass before it's sent, separate from the "Clean noisy tags" export toggle:
-
-- **Punctuation stripped**: periods and hyphens are removed (`JON A.S. KICK` → `JON AS KICK`), since some search backends treat them as literal characters instead of word separators and miss otherwise-good matches.
-- **Secondary artists dropped from the query only**: `La Bouche, Justus` searches as `La Bouche` — a featured/secondary credit tends to hurt text search more than help it. This never changes what's stored, shown in the preview, or exported; it's purely what gets typed into the search box.
-- Deezer transfers try one precise field-scoped query first (`track:"..." artist:"..."`), then fall back to the same cleaned free-text query if that comes back empty.
+Every text search this app makes on your behalf — YouTube Music, Deezer transfer/search, iTunes/Deezer auto-fix lookups — strips periods and hyphens before sending the query (e.g. `JON A.S. KICK` → `JON AS KICK`), since some search backends treat that punctuation literally instead of as word separators. Deezer transfers try one precise field-scoped query first (`track:"..." artist:"..."`), then fall back to the same cleaned free-text query if that comes back empty.
 
 The Library Check comparison already tokenized and stripped punctuation internally, so it was unaffected by messy punctuation before this change too.
+
+### Primary-artist-only names
+
+`cleanArtistText()` (used whenever "Clean noisy tags" is on — the default) now keeps only the lead artist and drops everything after a comma, `&`, `/`, `feat.`, `ft.`, `x`, or `vs.` — so `Skeler, Devilish Trio` becomes just `Skeler`. This applies everywhere: the track preview, CSV/TXT exports, and the query sent to YouTube/Deezer/iTunes for matching. Turn off "Clean noisy tags" if you'd rather keep the full multi-artist credit as Spotify has it.
 
 ## Cleaning noisy names before export
 
