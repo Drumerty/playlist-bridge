@@ -42,7 +42,7 @@ CHANGELOG.md   version history (mirrors the panel in the app header)
 
 ## Version & changelog
 
-The header shows the current version (e.g. `v1.2.0`) next to the title, with
+The header shows the current version (e.g. `v1.3.0`) next to the title, with
 a "what's new" dropdown listing recent changes. That list lives in the
 `CHANGELOG` array at the top of `app.js`; `CHANGELOG.md` is a plain-text
 copy for the repo. Whenever a change ships, bump `APP_VERSION` and add an
@@ -179,7 +179,9 @@ The Library Check comparison already tokenized and stripped punctuation internal
 
 ### Primary-artist-only names
 
-`cleanArtistText()` (used whenever "Clean noisy tags" is on — the default) now keeps only the lead artist and drops everything after a comma, `&`, `/`, `feat.`, `ft.`, `x`, or `vs.` — so `Skeler, Devilish Trio` becomes just `Skeler`. This applies everywhere: the track preview, CSV/TXT exports, and the query sent to YouTube/Deezer/iTunes for matching. Turn off "Clean noisy tags" if you'd rather keep the full multi-artist credit as Spotify has it.
+Only the lead artist is kept — everything after a comma, `&`, `/`, `feat.`, `ft.`, `x`, or `vs.` is dropped, so `Skeler, Devilish Trio` becomes just `Skeler`. This is applied the moment tracks are loaded from Spotify (not just at export time), so it's consistent everywhere: the on-screen preview, manual edits, CSV/TXT exports, and the queries sent to YouTube/Deezer/iTunes for matching. This isn't gated by the "Clean noisy tags" toggle — that toggle only controls stripping things like `(Remastered)`/`[Official Video]` from titles.
+
+A CSV/TXT file you exported before this change will still have the old multi-artist names in it — this only affects tracks loaded going forward. Re-export if you want an updated file.
 
 ## Cleaning noisy names before export
 

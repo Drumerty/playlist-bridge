@@ -11,9 +11,17 @@
 // both in sync when you add an entry.
 // ---------------------------------------------------------
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 
 const CHANGELOG = [
+  {
+    version: "1.3.0",
+    date: "2026-09-10",
+    notes: [
+      'Fixed for real this time: the previous fix only cleaned the artist name at export time — the on-screen preview (and the underlying track data) still had every Spotify-credited artist joined together, e.g. "Skeler, Devilish Trio". Now only the primary artist is kept the moment tracks are loaded from Spotify, so the preview, edits, exports, and search queries all agree.',
+      "Added cache-busting version tags to app.js/style.css/config.js so a redeploy shows up immediately instead of a browser or host serving a stale cached copy (the likely cause of the version badge getting stuck).",
+    ],
+  },
   {
     version: "1.2.0",
     date: "2026-09-10",
@@ -284,9 +292,19 @@ async function selectPlaylist(pl) {
         const t = entry && entry.item;
         if (!t) continue;
 
+        // Reduce to the primary/lead artist right here, at ingestion —
+        // not just at export time. Multiple credited artists from
+        // Spotify (t.artists) used to get joined with ", " and that
+        // joined string was what the on-screen preview showed and what
+        // got edited/exported/searched. Now only the first artist is
+        // kept everywhere; the full credited list is preserved in
+        // allArtists in case it's ever needed.
+        const allArtists = Array.isArray(t.artists) ? t.artists.map((a) => a.name).join(", ") : "Unknown Artist";
+
         tracks.push({
           title: t.name,
-          artist: Array.isArray(t.artists) ? t.artists.map((a) => a.name).join(", ") : "Unknown Artist",
+          artist: primaryArtist(allArtists),
+          allArtists,
           album: t.album?.name || "",
           isrc: t.external_ids?.isrc || "",
           spotifyUrl: t.id ? `https://open.spotify.com/track/${t.id}` : "",
@@ -570,10 +588,15 @@ async function fixNamesViaLookupServices() {
 }
 
 function exportableTracks() {
-  if (!isCleanupEnabled()) return state.tracks;
+  // The primary-artist reduction always applies (not gated by the toggle
+  // below) — it's not "noise cleanup", it's just never sending/writing a
+  // secondary credit. Tracks are already reduced at load time in
+  // selectPlaylist(); cleanArtistText() here is just a safety net in case
+  // a manual edit in the preview re-typed a "Artist A, Artist B" string.
+  const cleanupOn = isCleanupEnabled();
   return state.tracks.map((t) => ({
     ...t,
-    title: cleanTitleText(t.title),
+    title: cleanupOn ? cleanTitleText(t.title) : t.title,
     artist: cleanArtistText(t.artist),
   }));
 }
