@@ -5,7 +5,8 @@
    cards, perforated dividers, mono data fields.
    --------------------------------------------------------- */
 
-:root {
+:root,
+:root[data-theme="parchment"] {
   --paper: #F3ECD9;       /* warm parchment background */
   --ink: #1F2A44;         /* deep navy-ink text */
   --ink-soft: #4A5570;
@@ -15,9 +16,56 @@
   --line: #C9BFA0;        /* hairline / perforation */
   --card: #FBF8EF;
   --danger: #B8402B;
+  --amber: #C98A1E;
+
+  --tint-hover: #EFE7CE;
+  --tint-teal: #E6F3F1;
+  --tint-flare: #FDEDE6;
+  --tint-danger: #FBEDE8;
+  --tint-amber: #FBF1DE;
 
   --serif: "Fraunces", Georgia, serif;
   --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+}
+
+/* Dark theme — same ticket/boarding-pass concept, low-light palette. */
+:root[data-theme="dark"] {
+  --paper: #12151C;
+  --ink: #E7E4D8;
+  --ink-soft: #9AA2B4;
+  --teal: #3FCFC2;
+  --teal-dark: #2AA79C;
+  --flare: #FF8B63;
+  --line: #2A3040;
+  --card: #191E27;
+  --danger: #FF7A63;
+  --amber: #E3A83C;
+
+  --tint-hover: #232A38;
+  --tint-teal: #1B3330;
+  --tint-flare: #3A2620;
+  --tint-danger: #3A2020;
+  --tint-amber: #372B14;
+}
+
+/* White theme — clean/neutral, no parchment warmth. */
+:root[data-theme="white"] {
+  --paper: #FFFFFF;
+  --ink: #1A1D24;
+  --ink-soft: #5B6472;
+  --teal: #0E8074;
+  --teal-dark: #0B655C;
+  --flare: #D6552E;
+  --line: #E3E5EA;
+  --card: #FAFAFB;
+  --danger: #C4362A;
+  --amber: #B8790F;
+
+  --tint-hover: #F0F1F3;
+  --tint-teal: #E5F3F1;
+  --tint-flare: #FBEAE3;
+  --tint-danger: #FBEAE7;
+  --tint-amber: #FAF0DC;
 }
 
 .hidden { display: none; }
@@ -45,16 +93,47 @@ body {
 
 .brand-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.brand-left {
+  display: flex;
   align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.theme-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.08s ease;
+}
+
+.theme-btn:hover { transform: scale(1.12); }
+
+.theme-btn.active {
+  box-shadow: 0 0 0 2px var(--flare);
 }
 
 .version-badge {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--teal-dark);
-  background: #E6F3F1;
+  background: var(--tint-teal);
   border: 1px solid var(--teal);
   border-radius: 999px;
   padding: 2px 9px;
@@ -161,7 +240,7 @@ body {
 
 .ticket.warn {
   border-color: var(--danger);
-  background: #FBEDE8;
+  background: var(--tint-danger);
 }
 
 .ticket-row {
@@ -231,7 +310,7 @@ body {
   font-size: 12.5px;
   padding: 8px 14px;
 }
-.btn-secondary:hover { background: #E6F3F1; }
+.btn-secondary:hover { background: var(--tint-teal); }
 .btn-secondary:disabled {
   border-color: var(--line);
   color: var(--ink-soft);
@@ -279,6 +358,15 @@ body {
   color: var(--ink-soft);
   white-space: nowrap;
 }
+
+.playlist-item-liked {
+  border-color: var(--flare);
+  background: var(--tint-flare);
+  margin-bottom: 4px;
+}
+
+.playlist-item-liked .name { color: var(--flare); }
+.playlist-item-liked:hover { border-color: var(--flare); }
 
 /* ---------- track preview ---------- */
 
@@ -330,11 +418,11 @@ body {
 }
 
 .track-row [contenteditable="true"]:hover {
-  background: #EFE7CE;
+  background: var(--tint-hover);
 }
 
 .track-row [contenteditable="true"]:focus {
-  background: #FDEDE6;
+  background: var(--tint-flare);
   box-shadow: 0 0 0 1px var(--flare);
 }
 
@@ -399,7 +487,7 @@ body {
 
 .dest-option:has(input:checked) {
   border-color: var(--flare);
-  background: #FDEDE6;
+  background: var(--tint-flare);
 }
 
 .dest-option input { accent-color: var(--flare); }
@@ -434,7 +522,7 @@ body {
 }
 
 code {
-  background: #EFE7CE;
+  background: var(--tint-hover);
   border-radius: 4px;
   padding: 1px 5px;
 }
@@ -507,15 +595,15 @@ code {
 
 .dest-option.result-ok {
   border-color: var(--teal);
-  background: #E6F3F1;
+  background: var(--tint-teal);
 }
 .dest-option.result-partial {
-  border-color: #C98A1E;
-  background: #FBF1DE;
+  border-color: var(--amber);
+  background: var(--tint-amber);
 }
 .dest-option.result-fail {
   border-color: var(--danger);
-  background: #FBEDE8;
+  background: var(--tint-danger);
 }
 
 /* ---------- library row highlighting ---------- */
@@ -525,7 +613,7 @@ code {
   padding-left: 8px;
 }
 #libUncertainList li {
-  border-left: 3px solid #C98A1E;
+  border-left: 3px solid var(--amber);
   padding-left: 8px;
 }
 
@@ -601,7 +689,7 @@ code {
 
 .settings-field input:read-only {
   color: var(--ink-soft);
-  background: #EFE7CE;
+  background: var(--tint-hover);
 }
 
 /* ---------- library source toggle ---------- */

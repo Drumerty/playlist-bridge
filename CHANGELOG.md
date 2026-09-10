@@ -4,6 +4,15 @@ This mirrors the `CHANGELOG` array at the top of `app.js`, which also
 drives the "what's new" panel in the app header. Update both together
 when you make a change.
 
+## 1.4.0 — 2026-09-10
+- Added: Liked Songs now shows up as an entry at the top of your playlist
+  list (needs re-connecting Spotify once to grant the new
+  user-library-read permission) — transfer or export it exactly like any
+  other playlist.
+- Added: three color themes — Parchment (default), White, and Dark —
+  switchable from the swatches next to the title. Your choice is
+  remembered.
+
 ## 1.3.0 — 2026-09-10
 - Fixed for real this time: the previous fix only cleaned the artist name
   at export time — the on-screen preview (and the underlying track data)

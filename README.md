@@ -40,6 +40,16 @@ README.md      this file
 CHANGELOG.md   version history (mirrors the panel in the app header)
 ```
 
+## Liked Songs
+
+Your Liked Songs library shows up as its own entry at the top of the playlist list (♥ Liked Songs), right alongside your regular playlists. Click it and it works exactly like picking any playlist — preview, edit, export to CSV/TXT, or transfer to YouTube Music/Deezer.
+
+This uses a separate Spotify permission (`user-library-read`) from regular playlists. If you connected Spotify before this feature existed, click **Connect Spotify** again once to re-authorize with the new permission — Spotify will show the updated permission list on that screen.
+
+## Themes
+
+Three color themes are available from the small swatches next to the title: **Parchment** (the original warm/vintage look, default), **White** (clean and neutral), and **Dark**. Your choice is saved in this browser and applied instantly on future visits.
+
 ## Version & changelog
 
 The header shows the current version (e.g. `v1.3.0`) next to the title, with
