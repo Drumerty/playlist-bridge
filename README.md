@@ -149,6 +149,16 @@ buckets, both explained in the Library check block itself:
   filename and a rough match score are shown so you can verify by ear rather
   than the tool silently guessing wrong.
 
+## Auto-fix names via MusicBrainz (free, no credentials)
+
+Under the track preview, there's an **"Auto-fix names via MusicBrainz"** button. MusicBrainz is a free, public, non-commercial music metadata database — no API key, no account, nothing to configure. It looks up each track's ISRC (already pulled from Spotify) and, if MusicBrainz has a cleaner title/artist on file for that recording, adopts it.
+
+Two things worth knowing:
+- It's rate-limited to 1 request/second by MusicBrainz's own usage policy, so a big playlist takes a while — there's no way to safely speed this up without breaking their rules.
+- It won't fix everything. Stock/production-music tracks with garbled Spotify metadata are often *also* missing or garbled in MusicBrainz, since it's frequently the same underlying industry data gap. Treat this as a best-effort pass, not a guarantee — the manual click-to-edit in the preview list is still there for anything it can't resolve.
+
+Fixes made this way flow into every export and transfer, same as manual edits.
+
 ## Cleaning noisy names before export
 
 A checkbox above the destination picker, **on by default**, strips things like `(Remastered 2011)`, `[Official Video]`, `- Radio Edit`, `(Live at Wembley 1986)` from titles, and standardizes multi-artist separators (`feat.`, `&`, `/`) to a consistent `, `. It leaves meaningful content alone — `(feat. Someone Cool)` stays, since that's part of identifying the track, not noise.

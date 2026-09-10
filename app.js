@@ -346,6 +346,65 @@ function isCleanupEnabled() {
   return el ? el.checked : false;
 }
 
+// ===========================================================
+// MUSICBRAINZ — free, public, non-commercial metadata lookup.
+// No API key, no account, no credentials of any kind — that's the
+// whole point of using it instead of a "service with credentials."
+// Looks up each track's ISRC (already fetched from Spotify) against
+// MusicBrainz's database and adopts its title/artist if found, since
+// that's usually cleaner than what stock/production-music catalogs
+// put directly into Spotify. Rate-limited to 1 request/second per
+// MusicBrainz's usage policy, so this is slow on big playlists by
+// design — there's no way to safely speed it up.
+// ===========================================================
+
+async function fixNamesViaMusicBrainz() {
+  const candidates = state.tracks.filter((t) => t.isrc);
+  if (!candidates.length) {
+    log("None of these tracks have an ISRC to look up — nothing MusicBrainz can match on.", "err");
+    return;
+  }
+
+  $("btnFixNamesMusicBrainz").disabled = true;
+  log(`Checking ${candidates.length} tracks against MusicBrainz (1/sec, so this takes a bit)…`);
+
+  let fixed = 0, unchanged = 0, failed = 0;
+  for (const t of candidates) {
+    try {
+      const res = await fetch(
+        `https://musicbrainz.org/ws/2/isrc/${encodeURIComponent(t.isrc)}?fmt=json&inc=artist-credits`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const rec = data.recordings && data.recordings[0];
+        const mbTitle = rec && rec.title;
+        const mbArtist = rec && Array.isArray(rec["artist-credit"])
+          ? rec["artist-credit"].map((ac) => ac.name).join(", ")
+          : null;
+        if (mbTitle && (mbTitle !== t.title || mbArtist !== t.artist)) {
+          t.title = mbTitle;
+          if (mbArtist) t.artist = mbArtist;
+          fixed++;
+        } else {
+          unchanged++;
+        }
+      } else if (res.status === 503) {
+        log("MusicBrainz asked us to slow down — stopping early. Try again in a minute for the rest.", "err");
+        break;
+      } else {
+        unchanged++; // no match for this ISRC, nothing to fix
+      }
+    } catch {
+      failed++;
+    }
+    await sleep(1100); // MusicBrainz hard limit: max 1 request/second
+  }
+
+  renderTrackPreview();
+  log(`MusicBrainz: ${fixed} names updated, ${unchanged} unchanged, ${failed} lookups failed.`, fixed ? "ok" : "info");
+  $("btnFixNamesMusicBrainz").disabled = false;
+}
+
 function exportableTracks() {
   if (!isCleanupEnabled()) return state.tracks;
   return state.tracks.map((t) => ({
@@ -819,6 +878,7 @@ function init() {
   $("btnSaveSettings").addEventListener("click", saveSettingsForm);
   $("btnConnectSpotify").addEventListener("click", connectSpotify);
   $("btnTransfer").addEventListener("click", runTransfer);
+  $("btnFixNamesMusicBrainz").addEventListener("click", fixNamesViaMusicBrainz);
 
   $("libFolderInput").addEventListener("change", handleLibraryFolderInput);
   $("libPlaylistInput").addEventListener("change", handleLibraryPlaylistInput);
