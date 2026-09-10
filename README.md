@@ -149,6 +149,14 @@ buckets, both explained in the Library check block itself:
   filename and a rough match score are shown so you can verify by ear rather
   than the tool silently guessing wrong.
 
+## Cleaning noisy names before export
+
+A checkbox above the destination picker, **on by default**, strips things like `(Remastered 2011)`, `[Official Video]`, `- Radio Edit`, `(Live at Wembley 1986)` from titles, and standardizes multi-artist separators (`feat.`, `&`, `/`) to a consistent `, `. It leaves meaningful content alone — `(feat. Someone Cool)` stays, since that's part of identifying the track, not noise.
+
+This applies to every export (CSV, TXT) and to the search query used for YouTube/Deezer matching — cleaner search terms match better on those platforms too. It never touches the on-screen editable preview list itself, only what gets written out or searched with, so your original data is never altered in place.
+
+Turn it off if you'd rather export exactly what Spotify has, unmodified.
+
 ## Two CSV formats
 
 - **Simple** (`playlistname_simple.csv`) — just Artist and Title, two columns, nothing else, in that order. This is the plain "what Spotify shows while playing" view, same information as the .txt export but in spreadsheet form. Checked by default.

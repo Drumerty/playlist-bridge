@@ -305,9 +305,59 @@ function csvFrom(rows) {
   return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
 }
 
+// ---------- name cleanup for export/search ----------
+// Strips noise commonly found in Spotify's title field that has nothing
+// to do with identifying the track — remaster/edition tags, "Official
+// Video", live-recording notes, etc. Doesn't touch meaningful content
+// like "(feat. Artist)" or a track's actual subtitle.
+
+const NOISE_WORDS =
+  "remaster(?:ed)?(?:\\s*\\d{4})?|\\d{4}\\s*remaster(?:ed)?|" +
+  "live(?:\\s*(?:at|from|in)\\s*[^)\\]]*)?|" +
+  "mono|stereo|single version|album version|deluxe(?:\\s*edition)?|" +
+  "bonus track|radio edit|clean(?:\\s*version)?|explicit(?:\\s*version)?|" +
+  "official\\s*(?:video|audio|music video|lyric video)|lyric video|" +
+  "hd|hq|4k|visualizer|video edit|extended (?:mix|version)|original mix";
+
+// e.g. "Song Title (Remastered 2011)" / "Song Title [Official Video]"
+const NOISE_BRACKETED = new RegExp(`\\s*[\\(\\[]\\s*(?:${NOISE_WORDS})\\s*[\\)\\]]`, "gi");
+// e.g. "Song Title - Remastered 2011" (no brackets, trailing dash form)
+const NOISE_DASH_SUFFIX = new RegExp(`\\s*-\\s*(?:${NOISE_WORDS})\\s*$`, "gi");
+
+function cleanTitleText(title) {
+  let t = String(title);
+  t = t.replace(NOISE_BRACKETED, "");
+  t = t.replace(NOISE_DASH_SUFFIX, "");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  return t || title; // never return an empty string — fall back to original
+}
+
+function cleanArtistText(artist) {
+  // Standardize separators between multiple artists to ", " and trim.
+  return String(artist)
+    .split(/\s*[,&/]\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+/i)
+    .filter(Boolean)
+    .join(", ")
+    .trim() || artist;
+}
+
+function isCleanupEnabled() {
+  const el = $("cleanNamesToggle");
+  return el ? el.checked : false;
+}
+
+function exportableTracks() {
+  if (!isCleanupEnabled()) return state.tracks;
+  return state.tracks.map((t) => ({
+    ...t,
+    title: cleanTitleText(t.title),
+    artist: cleanArtistText(t.artist),
+  }));
+}
+
 function exportCsv() {
   const rows = [["Title", "Artist", "Album", "ISRC", "Spotify Link"]];
-  state.tracks.forEach((t) => rows.push([t.title, t.artist, t.album, t.isrc || "", t.spotifyUrl || ""]));
+  exportableTracks().forEach((t) => rows.push([t.title, t.artist, t.album, t.isrc || "", t.spotifyUrl || ""]));
   const name = safeFileName(state.chosenPlaylist.name) + ".csv";
   downloadBlob(name, csvFrom(rows), "text/csv");
   log(`Saved ${name}`, "ok");
@@ -315,14 +365,14 @@ function exportCsv() {
 
 function exportCsvSimple() {
   const rows = [["Artist", "Title"]];
-  state.tracks.forEach((t) => rows.push([t.artist, t.title]));
+  exportableTracks().forEach((t) => rows.push([t.artist, t.title]));
   const name = safeFileName(state.chosenPlaylist.name) + "_simple.csv";
   downloadBlob(name, csvFrom(rows), "text/csv");
   log(`Saved ${name}`, "ok");
 }
 
 function exportTxt() {
-  const lines = state.tracks.map((t) => `${t.artist} - ${t.title}`);
+  const lines = exportableTracks().map((t) => `${t.artist} - ${t.title}`);
   const name = safeFileName(state.chosenPlaylist.name) + ".txt";
   downloadBlob(name, lines.join("\r\n"), "text/plain");
   log(`Saved ${name}`, "ok");
@@ -389,7 +439,7 @@ async function transferToYoutube() {
   log(`Created YouTube playlist "${state.chosenPlaylist.name}"`, "ok");
 
   let added = 0, missed = 0;
-  for (const t of state.tracks) {
+  for (const t of exportableTracks()) {
     const q = encodeURIComponent(`${t.artist} ${t.title}`);
     const searchRes = await fetch(
       `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${q}`,
@@ -468,7 +518,7 @@ async function transferToDeezer() {
 
   const trackIds = [];
   let missed = 0;
-  for (const t of state.tracks) {
+  for (const t of exportableTracks()) {
     const q = `track:"${t.title}" artist:"${t.artist}"`;
     const results = await deezerApi("/search", "GET", { q });
     const hit = results && results.data && results.data[0];
