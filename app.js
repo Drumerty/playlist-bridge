@@ -11,9 +11,17 @@
 // both in sync when you add an entry.
 // ---------------------------------------------------------
 
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 
 const CHANGELOG = [
+  {
+    version: "1.4.0",
+    date: "2026-09-10",
+    notes: [
+      "Added: Liked Songs now shows up as an entry at the top of your playlist list (needs re-connecting Spotify once to grant the new user-library-read permission) — transfer or export it exactly like any other playlist.",
+      "Added: three color themes — Parchment (default), White, and Dark — switchable from the swatches next to the title. Your choice is remembered.",
+    ],
+  },
   {
     version: "1.3.0",
     date: "2026-09-10",
@@ -61,6 +69,41 @@ function renderVersionInfo() {
       `<div class="changelog-version">v${escapeHtml(entry.version)} <span class="changelog-date">${escapeHtml(entry.date)}</span></div>` +
       `<ul class="changelog-notes">${notesHtml}</ul>`;
     list.appendChild(li);
+  });
+}
+
+// ---------------------------------------------------------
+// THEME
+// Three palettes (parchment/white/dark), same ticket layout. Picked via
+// the swatches in the header, saved to localStorage. index.html also has
+// a tiny inline script that applies the saved theme before first paint,
+// so there's no flash of the wrong theme on reload.
+// ---------------------------------------------------------
+
+const THEME_STORAGE_KEY = "pb_theme";
+const THEMES = ["parchment", "white", "dark"];
+
+function applyTheme(theme) {
+  if (!THEMES.includes(theme)) theme = "parchment";
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch (e) {
+    // localStorage unavailable (private mode etc.) — theme just won't persist
+  }
+  document.querySelectorAll(".theme-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.theme === theme);
+  });
+}
+
+function initTheme() {
+  let saved = "parchment";
+  try {
+    saved = localStorage.getItem(THEME_STORAGE_KEY) || "parchment";
+  } catch (e) {}
+  applyTheme(saved);
+  document.querySelectorAll(".theme-btn").forEach((btn) => {
+    btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
   });
 }
 
@@ -186,7 +229,7 @@ async function connectSpotify() {
     redirect_uri: CFG.REDIRECT_URI,
     code_challenge_method: "S256",
     code_challenge: challenge,
-    scope: "playlist-read-private playlist-read-collaborative",
+    scope: "playlist-read-private playlist-read-collaborative user-library-read",
   });
   window.location.href = "https://accounts.spotify.com/authorize?" + params.toString();
 }
@@ -222,6 +265,8 @@ async function spotifyFetch(url) {
   return res.json();
 }
 
+const LIKED_SONGS_ID = "__liked_songs__";
+
 async function loadSpotifyPlaylists() {
   setStatus($("spotifyStatus"), "Loading playlists…", "info");
   let url = "https://api.spotify.com/v1/me/playlists?limit=50";
@@ -234,6 +279,23 @@ async function loadSpotifyPlaylists() {
     url = data ? data.next : null;
   }
   state.playlists = all;
+
+  // Liked Songs isn't a playlist Spotify's API returns from /me/playlists —
+  // it's a separate library endpoint (/me/tracks, needs the
+  // user-library-read scope). Fetch just the total here so it can be shown
+  // as an entry at the top of the list; the actual tracks are only fetched
+  // when the user picks it, same as any other playlist.
+  state.likedSongsTotal = 0;
+  try {
+    const likedMeta = await spotifyFetch("https://api.spotify.com/v1/me/tracks?limit=1");
+    state.likedSongsTotal = likedMeta.total || 0;
+  } catch (err) {
+    log(
+      "Couldn't load your Liked Songs count (this needs the user-library-read permission) — reconnect Spotify above to grant it if you want to transfer Liked Songs.",
+      "info"
+    );
+  }
+
   renderPlaylists();
   setStatus($("spotifyStatus"), `Connected — ${all.length} playlists found.`, "ok");
   show("step-playlists");
@@ -242,6 +304,16 @@ async function loadSpotifyPlaylists() {
 function renderPlaylists() {
   const container = $("playlistList");
   container.innerHTML = "";
+
+  // Liked Songs always shown first, styled distinctly (heart accent).
+  const likedDiv = document.createElement("div");
+  likedDiv.className = "playlist-item playlist-item-liked";
+  likedDiv.innerHTML = `<span class="name">\u2665 Liked Songs</span><span class="count">${state.likedSongsTotal || 0} tracks</span>`;
+  likedDiv.addEventListener("click", () =>
+    selectPlaylist({ id: LIKED_SONGS_ID, name: "Liked Songs", isLiked: true })
+  );
+  container.appendChild(likedDiv);
+
   state.playlists.forEach((pl) => {
     // Spotify's Feb 2026 API migration renamed `tracks` -> `items` on playlist
     // objects. Keep the old key as a fallback in case a cached/older token
@@ -262,13 +334,14 @@ async function selectPlaylist(pl) {
   $("trackList").innerHTML = "<li>Loading tracks…</li>";
   show("step-destinations");
 
-  // Spotify's Feb 2026 API migration renamed this endpoint from
-  // /tracks to /items, and the entry key from `track` to `item`.
-  // It's also now ONLY available for playlists you own or collaborate
-  // on — for anything else (e.g. Spotify's own editorial/algorithmic
-  // playlists like Discover Weekly or genre mixes) it returns 403
-  // with no workaround on the API side.
-  let url = `https://api.spotify.com/v1/playlists/${pl.id}/items?fields=items(item(id,name,artists(name),album(name),external_ids(isrc))),next&limit=100`;
+  // Liked Songs lives on a different endpoint (/me/tracks) with a
+  // different response shape than playlist items: each entry is
+  // { added_at, track } instead of { item }, and it doesn't support the
+  // partial-response `fields=` filter the playlist endpoint does, so we
+  // just take the whole track object.
+  let url = pl.isLiked
+    ? "https://api.spotify.com/v1/me/tracks?limit=50"
+    : `https://api.spotify.com/v1/playlists/${pl.id}/items?fields=items(item(id,name,artists(name),album(name),external_ids(isrc))),next&limit=100`;
   const tracks = [];
 
   try {
@@ -279,7 +352,9 @@ async function selectPlaylist(pl) {
       } catch (err) {
         if (err.status === 403) {
           log(
-            `Can't read tracks for "${pl.name}" — this endpoint only works for playlists you own or collaborate on. If this is a Spotify-curated playlist (Discover Weekly, a genre mix, etc.), the Web API blocks it entirely; there's no workaround. Try a playlist you created or added tracks to yourself.`,
+            pl.isLiked
+              ? `Can't read Liked Songs — this needs the user-library-read permission. Reconnect Spotify above (the Connect Spotify button re-requests permissions) and try again.`
+              : `Can't read tracks for "${pl.name}" — this endpoint only works for playlists you own or collaborate on. If this is a Spotify-curated playlist (Discover Weekly, a genre mix, etc.), the Web API blocks it entirely; there's no workaround. Try a playlist you created or added tracks to yourself.`,
             "err"
           );
           break;
@@ -289,7 +364,7 @@ async function selectPlaylist(pl) {
       if (!data || !data.items) break;
 
       for (const entry of data.items) {
-        const t = entry && entry.item;
+        const t = pl.isLiked ? entry && entry.track : entry && entry.item;
         if (!t) continue;
 
         // Reduce to the primary/lead artist right here, at ingestion —
@@ -1068,6 +1143,7 @@ async function runTransfer() {
 
 function init() {
   renderVersionInfo();
+  initTheme();
   checkSetup();
   populateSettingsForm();
 
