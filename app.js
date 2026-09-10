@@ -346,6 +346,48 @@ function isCleanupEnabled() {
   return el ? el.checked : false;
 }
 
+// ---------- search-query optimization ----------
+// These two helpers build an artist+title string tuned for *external
+// search APIs* (YouTube, Deezer, iTunes) and the local Library Check
+// comparison. They're deliberately separate from cleanArtistText() /
+// cleanTitleText() above: those control what gets shown in the editable
+// preview and written to CSV/TXT exports, and shouldn't silently drop a
+// featured artist a user might want on record. This only affects the
+// string handed to a search box, so it can be more aggressive.
+
+function primaryArtist(artist) {
+  // "La Bouche, Justus" / "La Bouche feat. Justus" often searches worse
+  // than "La Bouche" alone — secondary/featured credits add noise that
+  // some search backends weight too heavily. Take the lead artist only.
+  const first = String(artist)
+    .split(/\s*[,&/]\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+|\s+x\s+|\s+vs\.?\s+/i)[0]
+    .trim();
+  return first || artist;
+}
+
+function searchFriendly(s) {
+  // "JON A.S. KICK" and "Say it Right - Old School Version" style
+  // punctuation (periods used as spacers, stray hyphens) can make a
+  // literal search match worse than the plain words alone. Strip it for
+  // query-building only — never touches the stored title/artist.
+  return String(s)
+    .replace(/\./g, "")
+    .replace(/-/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// The single function everything below should call when building a query
+// for an external search endpoint (YouTube search, Deezer search, iTunes
+// search). Applies the noise-strip from cleanTitleText first (Remastered/
+// Official Video/etc. tags), then reduces to the primary artist, then
+// strips leftover punctuation.
+function buildSearchQuery(track) {
+  const title = cleanTitleText(track.title);
+  const artist = primaryArtist(track.artist);
+  return searchFriendly(`${artist} ${title}`);
+}
+
 // ===========================================================
 // NAME LOOKUP SERVICES — free, no credentials, no login for any of these.
 //
@@ -447,7 +489,7 @@ async function fixNamesViaLookupServices() {
     log(`Pass 2/3 — iTunes Search: checking ${stillNeedItunes.length} remaining tracks (~20/min limit, slow)…`);
     for (const t of stillNeedItunes) {
       try {
-        const hit = await itunesLookupByText(`${t.artist} ${t.title}`);
+        const hit = await itunesLookupByText(buildSearchQuery(t));
         if (looksLikeConfidentMatch(t, hit)) { if (applyHit(t, hit, "iTunes")) itunesFixed++; }
       } catch { /* leave it for Deezer pass or as-is */ }
       await sleep(3200); // stay safely under Apple's ~20 calls/minute limit
@@ -460,7 +502,7 @@ async function fixNamesViaLookupServices() {
     log(`Pass 3/3 — Deezer Search: checking ${stillNeedDeezer.length} remaining tracks…`);
     for (const t of stillNeedDeezer) {
       try {
-        const hit = await deezerLookupByText(`${t.artist} ${t.title}`);
+        const hit = await deezerLookupByText(buildSearchQuery(t));
         if (looksLikeConfidentMatch(t, hit)) { if (applyHit(t, hit, "Deezer")) deezerFixed++; }
       } catch { /* nothing more to try */ }
       await sleep(400);
@@ -570,7 +612,7 @@ async function transferToYoutube() {
 
   let added = 0, missed = 0;
   for (const t of exportableTracks()) {
-    const q = encodeURIComponent(`${t.artist} ${t.title}`);
+    const q = encodeURIComponent(buildSearchQuery(t));
     const searchRes = await fetch(
       `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${q}`,
       { headers: authHeader }
@@ -649,9 +691,17 @@ async function transferToDeezer() {
   const trackIds = [];
   let missed = 0;
   for (const t of exportableTracks()) {
-    const q = `track:"${t.title}" artist:"${t.artist}"`;
-    const results = await deezerApi("/search", "GET", { q });
-    const hit = results && results.data && results.data[0];
+    // Try a precise field-scoped query first (best when metadata is clean),
+    // then fall back to the same loosely-cleaned free-text query the other
+    // services use — the quoted exact-field search can miss on punctuation
+    // or multi-artist credits that a plain-text search handles fine.
+    const preciseQ = `track:"${cleanTitleText(t.title)}" artist:"${primaryArtist(t.artist)}"`;
+    let results = await deezerApi("/search", "GET", { q: preciseQ });
+    let hit = results && results.data && results.data[0];
+    if (!hit) {
+      results = await deezerApi("/search", "GET", { q: buildSearchQuery(t) });
+      hit = results && results.data && results.data[0];
+    }
     if (hit) trackIds.push(hit.id);
     else { missed++; log(`No Deezer match for "${t.artist} - ${t.title}"`, "err"); }
     await sleep(120);

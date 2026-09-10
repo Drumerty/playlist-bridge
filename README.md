@@ -161,6 +161,16 @@ Under the track preview, there's an **"Auto-fix names (MusicBrainz → iTunes �
 
 **Why three services:** MusicBrainz catches well-known commercial releases via ISRC but misses newer indie/self-released tracks and has gaps in stock music. iTunes and Deezer catch different gaps via text search, so the three together give you the best shot at clean data without needing credentials, login, or paid APIs.
 
+### Search-query cleanup (new)
+
+Every text search this app makes on your behalf — YouTube Music, Deezer transfer/search, iTunes/Deezer auto-fix lookups — now goes through an extra cleanup pass before it's sent, separate from the "Clean noisy tags" export toggle:
+
+- **Punctuation stripped**: periods and hyphens are removed (`JON A.S. KICK` → `JON AS KICK`), since some search backends treat them as literal characters instead of word separators and miss otherwise-good matches.
+- **Secondary artists dropped from the query only**: `La Bouche, Justus` searches as `La Bouche` — a featured/secondary credit tends to hurt text search more than help it. This never changes what's stored, shown in the preview, or exported; it's purely what gets typed into the search box.
+- Deezer transfers try one precise field-scoped query first (`track:"..." artist:"..."`), then fall back to the same cleaned free-text query if that comes back empty.
+
+The Library Check comparison already tokenized and stripped punctuation internally, so it was unaffected by messy punctuation before this change too.
+
 ## Cleaning noisy names before export
 
 A checkbox above the destination picker, **on by default**, strips things like `(Remastered 2011)`, `[Official Video]`, `- Radio Edit`, `(Live at Wembley 1986)` from titles, and standardizes multi-artist separators (`feat.`, `&`, `/`) to a consistent `, `. It leaves meaningful content alone — `(feat. Someone Cool)` stays, since that's part of identifying the track, not noise.
