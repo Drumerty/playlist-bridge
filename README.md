@@ -25,7 +25,7 @@ Either way, the missing/uncertain results are still downloadable as CSV — that
 ## Visual highlighting
 
 - Spotify connection status turns green on success, red on failure.
-- After a transfer, each destination checkbox is tinted: green (fully added), amber (partially added — some tracks couldn't be matched), or red (failed outright).
+- After a transfer, the chosen destination is tinted: green (fully added), amber (partially added — some tracks couldn't be matched), or red (failed outright).
 - In Library check, **missing** rows have a red left border, **uncertain** rows an amber one, so you can scan the list at a glance.
 
 ## Files
@@ -151,10 +151,10 @@ buckets, both explained in the Library check block itself:
 
 ## Two CSV formats
 
-- **Simple** (`playlistname_simple.csv`) — just Title and Artist, two columns, nothing else. This is the plain "what Spotify shows while playing" view, same information as the .txt export but in spreadsheet form. Checked by default.
+- **Simple** (`playlistname_simple.csv`) — just Artist and Title, two columns, nothing else, in that order. This is the plain "what Spotify shows while playing" view, same information as the .txt export but in spreadsheet form. Checked by default.
 - **Full** (`playlistname.csv`) — adds Album, ISRC, and a direct Spotify link per track, useful mainly for tracking down tracks with garbled source metadata (see below).
 
-You can check both boxes at once if you want both.
+Note: only one destination can be selected at a time (it's a single-choice list now, not checkboxes) — run the transfer once per destination if you want more than one.
 
 ## Garbled artist/title names (e.g. a label name instead of an artist)
 

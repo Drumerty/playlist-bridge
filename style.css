@@ -210,11 +210,16 @@ body {
   gap: 10px;
 }
 
-.track-list li .t-artist {
+.track-list li .t-title {
   color: var(--ink-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.track-list li .t-artist {
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
 .track-row {

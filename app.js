@@ -259,8 +259,8 @@ function renderTrackPreview() {
       ? `<a href="${t.spotifyUrl}" target="_blank" rel="noopener" class="t-link" title="Open on Spotify to check the real metadata">↗</a>`
       : "";
     li.innerHTML = `
-      <span class="t-title" contenteditable="true" data-idx="${idx}" data-field="title">${escapeHtml(t.title)}</span>
       <span class="t-artist" contenteditable="true" data-idx="${idx}" data-field="artist">${escapeHtml(t.artist)}</span>
+      <span class="t-title" contenteditable="true" data-idx="${idx}" data-field="title">${escapeHtml(t.title)}</span>
       ${linkHtml}
     `;
     list.appendChild(li);
@@ -671,7 +671,7 @@ function renderLibraryResults(totalCount) {
   missingList.innerHTML = "";
   libState.missing.forEach((t) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="t-title">${escapeHtml(t.title)}</span><span class="t-artist">${escapeHtml(t.artist)}</span>`;
+    li.innerHTML = `<span class="t-artist">${escapeHtml(t.artist)}</span><span class="t-title">${escapeHtml(t.title)}</span>`;
     missingList.appendChild(li);
   });
 
@@ -681,7 +681,7 @@ function renderLibraryResults(totalCount) {
     const li = document.createElement("li");
     li.className = "lib-uncertain-row";
     li.innerHTML = `
-      <div class="t-main"><span class="t-title">${escapeHtml(t.title)}</span><span class="t-artist">${escapeHtml(t.artist)}</span></div>
+      <div class="t-main"><span class="t-artist">${escapeHtml(t.artist)}</span><span class="t-title">${escapeHtml(t.title)}</span></div>
       <div class="t-candidate">closest local file: <code>${escapeHtml(t.candidate)}</code> (${Math.round(t.score * 100)}% word overlap) — check by ear</div>
     `;
     uncertainList.appendChild(li);
@@ -715,8 +715,7 @@ function downloadUncertainCsv() {
 
 async function runTransfer() {
   const checkedBoxes = Array.from(document.querySelectorAll('input[name="dest"]:checked'));
-  const dests = checkedBoxes.map((el) => el.value);
-  if (!dests.length) { log("Pick at least one destination.", "err"); return; }
+  if (!checkedBoxes.length) { log("Pick at least one destination.", "err"); return; }
   if (!state.tracks.length) { log("This playlist has no tracks to transfer.", "err"); return; }
 
   // clear any highlighting left over from a previous run
@@ -729,23 +728,30 @@ async function runTransfer() {
   $("logList").innerHTML = "";
   log(`Starting transfer of "${state.chosenPlaylist.name}" (${state.tracks.length} tracks)…`);
 
-  for (const dest of dests) {
-    const label = document.querySelector(`.dest-option input[value="${dest}"]`).closest(".dest-option");
+  for (const checkbox of checkedBoxes) {
+    const dest = checkbox.value;
+    // Use the checkbox we already have a reference to, rather than
+    // re-querying the DOM by value — avoids silent failures if markup
+    // and script ever get out of sync (e.g. a stale cached HTML file).
+    const label = checkbox.closest(".dest-option");
     try {
-      if (dest === "csv") { exportCsv(); label.classList.add("result-ok"); }
-      else if (dest === "csv-simple") { exportCsvSimple(); label.classList.add("result-ok"); }
-      else if (dest === "txt") { exportTxt(); label.classList.add("result-ok"); }
+      if (dest === "csv") { exportCsv(); label?.classList.add("result-ok"); }
+      else if (dest === "csv-simple") { exportCsvSimple(); label?.classList.add("result-ok"); }
+      else if (dest === "txt") { exportTxt(); label?.classList.add("result-ok"); }
       else if (dest === "youtube") {
         const { added, missed } = await transferToYoutube();
-        label.classList.add(missed === 0 ? "result-ok" : added > 0 ? "result-partial" : "result-fail");
+        label?.classList.add(missed === 0 ? "result-ok" : added > 0 ? "result-partial" : "result-fail");
       } else if (dest === "deezer") {
         const { added, missed } = await transferToDeezer();
-        label.classList.add(missed === 0 ? "result-ok" : added > 0 ? "result-partial" : "result-fail");
+        label?.classList.add(missed === 0 ? "result-ok" : added > 0 ? "result-partial" : "result-fail");
+      } else {
+        log(`Unknown destination "${dest}" — skipped.`, "err");
       }
     } catch (err) {
       log(`${dest}: ${err.message}`, "err");
-      label.classList.add("result-fail");
+      label?.classList.add("result-fail");
     }
+    await sleep(50); // give each triggered download its own tick, some browsers throttle back-to-back downloads
   }
 
   log("Done.", "ok");
