@@ -149,15 +149,17 @@ buckets, both explained in the Library check block itself:
   filename and a rough match score are shown so you can verify by ear rather
   than the tool silently guessing wrong.
 
-## Auto-fix names via MusicBrainz (free, no credentials)
+## Auto-fix names via three free services (no credentials, no login)
 
-Under the track preview, there's an **"Auto-fix names via MusicBrainz"** button. MusicBrainz is a free, public, non-commercial music metadata database — no API key, no account, nothing to configure. It looks up each track's ISRC (already pulled from Spotify) and, if MusicBrainz has a cleaner title/artist on file for that recording, adopts it.
+Under the track preview, there's an **"Auto-fix names (MusicBrainz → iTunes → Deezer)"** button. It runs three passes, each only on tracks the previous pass didn't confidently resolve:
 
-Two things worth knowing:
-- It's rate-limited to 1 request/second by MusicBrainz's own usage policy, so a big playlist takes a while — there's no way to safely speed this up without breaking their rules.
-- It won't fix everything. Stock/production-music tracks with garbled Spotify metadata are often *also* missing or garbled in MusicBrainz, since it's frequently the same underlying industry data gap. Treat this as a best-effort pass, not a guarantee — the manual click-to-edit in the preview list is still there for anything it can't resolve.
+1. **MusicBrainz** — matches by ISRC (the most reliable when it has data). Direct API, free, public. Rate-limited to 1 request/sec by their own policy.
+2. **iTunes Search** — matches by artist + title text. Apple's free public search API. Uses JSONP (no CORS needed), no login. Rate-limited to ~20 calls/minute per Apple's documentation.
+3. **Deezer Search** — matches by artist + title text. Deezer's free public search endpoint. Uses JSONP (same as iTunes), no login required — Deezer login is only needed for playlist *transfers*, not for this plain catalog search. No published rate limit, but we stay polite.
 
-Fixes made this way flow into every export and transfer, same as manual edits.
+**How to use it:** Click the button. It will take a while (especially MusicBrainz, which is 1 call/sec), but the progress log shows you what each pass is doing. Any tracks left unfixed after all three passes are either already correct or genuinely not found in any of these databases — the manual click-to-edit in the preview list is still there for final tweaks.
+
+**Why three services:** MusicBrainz catches well-known commercial releases via ISRC but misses newer indie/self-released tracks and has gaps in stock music. iTunes and Deezer catch different gaps via text search, so the three together give you the best shot at clean data without needing credentials, login, or paid APIs.
 
 ## Cleaning noisy names before export
 

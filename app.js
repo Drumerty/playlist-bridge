@@ -347,61 +347,132 @@ function isCleanupEnabled() {
 }
 
 // ===========================================================
-// MUSICBRAINZ — free, public, non-commercial metadata lookup.
-// No API key, no account, no credentials of any kind — that's the
-// whole point of using it instead of a "service with credentials."
-// Looks up each track's ISRC (already fetched from Spotify) against
-// MusicBrainz's database and adopts its title/artist if found, since
-// that's usually cleaner than what stock/production-music catalogs
-// put directly into Spotify. Rate-limited to 1 request/second per
-// MusicBrainz's usage policy, so this is slow on big playlists by
-// design — there's no way to safely speed it up.
+// NAME LOOKUP SERVICES — free, no credentials, no login for any of these.
+//
+// MusicBrainz : public metadata DB, matched by ISRC. Direct fetch()
+//               works — MusicBrainz sets normal CORS headers.
+// iTunes      : Apple's public search API. Does NOT support CORS for
+//               direct fetch(), so we use JSONP (script-tag injection),
+//               which iTunes still explicitly supports via ?callback=.
+//               Rate limit: ~20 calls/minute per Apple's own docs.
+// Deezer      : public search endpoint. Also blocks CORS on fetch()
+//               by design — Deezer's own developer FAQ says to use
+//               JSONP (?output=jsonp&callback=) instead, so that's
+//               what we do here. This does NOT need Deezer login —
+//               that's only required for the transfer feature, which
+//               writes to your account; a plain search is public data.
 // ===========================================================
 
-async function fixNamesViaMusicBrainz() {
-  const candidates = state.tracks.filter((t) => t.isrc);
-  if (!candidates.length) {
-    log("None of these tracks have an ISRC to look up — nothing MusicBrainz can match on.", "err");
-    return;
-  }
-
-  $("btnFixNamesMusicBrainz").disabled = true;
-  log(`Checking ${candidates.length} tracks against MusicBrainz (1/sec, so this takes a bit)…`);
-
-  let fixed = 0, unchanged = 0, failed = 0;
-  for (const t of candidates) {
-    try {
-      const res = await fetch(
-        `https://musicbrainz.org/ws/2/isrc/${encodeURIComponent(t.isrc)}?fmt=json&inc=artist-credits`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const rec = data.recordings && data.recordings[0];
-        const mbTitle = rec && rec.title;
-        const mbArtist = rec && Array.isArray(rec["artist-credit"])
-          ? rec["artist-credit"].map((ac) => ac.name).join(", ")
-          : null;
-        if (mbTitle && (mbTitle !== t.title || mbArtist !== t.artist)) {
-          t.title = mbTitle;
-          if (mbArtist) t.artist = mbArtist;
-          fixed++;
-        } else {
-          unchanged++;
-        }
-      } else if (res.status === 503) {
-        log("MusicBrainz asked us to slow down — stopping early. Try again in a minute for the rest.", "err");
-        break;
-      } else {
-        unchanged++; // no match for this ISRC, nothing to fix
-      }
-    } catch {
-      failed++;
+function jsonpRequest(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = "pbJsonp_" + Math.random().toString(36).slice(2);
+    const timeout = setTimeout(() => { cleanup(); reject(new Error("JSONP request timed out")); }, 8000);
+    const script = document.createElement("script");
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      script.remove();
     }
-    await sleep(1100); // MusicBrainz hard limit: max 1 request/second
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    script.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cbName;
+    script.onerror = () => { cleanup(); reject(new Error("JSONP request failed to load")); };
+    document.head.appendChild(script);
+  });
+}
+
+async function musicbrainzLookupByIsrc(isrc) {
+  const res = await fetch(`https://musicbrainz.org/ws/2/isrc/${encodeURIComponent(isrc)}?fmt=json&inc=artist-credits`);
+  if (!res.ok) return { rateLimited: res.status === 503, hit: null };
+  const data = await res.json();
+  const rec = data.recordings && data.recordings[0];
+  if (!rec || !rec.title) return { rateLimited: false, hit: null };
+  const artist = Array.isArray(rec["artist-credit"]) ? rec["artist-credit"].map((ac) => ac.name).join(", ") : null;
+  return { rateLimited: false, hit: { title: rec.title, artist } };
+}
+
+async function itunesLookupByText(query) {
+  const url = `https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${encodeURIComponent(query)}`;
+  const data = await jsonpRequest(url);
+  const r = data && data.results && data.results[0];
+  return r ? { title: r.trackName, artist: r.artistName } : null;
+}
+
+async function deezerLookupByText(query) {
+  const url = `https://api.deezer.com/search?limit=1&output=jsonp&q=${encodeURIComponent(query)}`;
+  const data = await jsonpRequest(url);
+  const r = data && data.data && data.data[0];
+  return r ? { title: r.title, artist: r.artist ? r.artist.name : null } : null;
+}
+
+function looksLikeConfidentMatch(track, hit) {
+  if (!hit || !hit.title) return false;
+  const a = normalizeForMatch(`${track.artist} ${track.title}`);
+  const b = normalizeForMatch(`${hit.artist || ""} ${hit.title}`);
+  return tokenSimilarity(a, b) >= 0.4;
+}
+
+function applyHit(track, hit, source) {
+  const changed = hit.title !== track.title || (hit.artist && hit.artist !== track.artist);
+  track.title = hit.title;
+  if (hit.artist) track.artist = hit.artist;
+  track._resolvedBy = source;
+  return changed;
+}
+
+async function fixNamesViaLookupServices() {
+  $("btnFixNamesMusicBrainz").disabled = true;
+  state.tracks.forEach((t) => { delete t._resolvedBy; });
+
+  let mbFixed = 0, itunesFixed = 0, deezerFixed = 0;
+
+  // Pass 1 — MusicBrainz, ISRC-based (most reliable when it has data)
+  const withIsrc = state.tracks.filter((t) => t.isrc);
+  if (withIsrc.length) {
+    log(`Pass 1/3 — MusicBrainz (by ISRC): checking ${withIsrc.length} tracks…`);
+    for (const t of withIsrc) {
+      try {
+        const { rateLimited, hit } = await musicbrainzLookupByIsrc(t.isrc);
+        if (rateLimited) { log("MusicBrainz asked us to slow down — stopping this pass early.", "err"); break; }
+        if (hit) { if (applyHit(t, hit, "MusicBrainz")) mbFixed++; }
+      } catch { /* skip this track, other passes may still catch it */ }
+      await sleep(1100); // MusicBrainz hard limit: 1 request/second
+    }
+  } else {
+    log("No tracks have an ISRC — skipping the MusicBrainz pass.", "info");
   }
 
+  // Pass 2 — iTunes Search, text-based fallback for anything MusicBrainz didn't confirm
+  const stillNeedItunes = state.tracks.filter((t) => !t._resolvedBy);
+  if (stillNeedItunes.length) {
+    log(`Pass 2/3 — iTunes Search: checking ${stillNeedItunes.length} remaining tracks (~20/min limit, slow)…`);
+    for (const t of stillNeedItunes) {
+      try {
+        const hit = await itunesLookupByText(`${t.artist} ${t.title}`);
+        if (looksLikeConfidentMatch(t, hit)) { if (applyHit(t, hit, "iTunes")) itunesFixed++; }
+      } catch { /* leave it for Deezer pass or as-is */ }
+      await sleep(3200); // stay safely under Apple's ~20 calls/minute limit
+    }
+  }
+
+  // Pass 3 — Deezer Search, text-based, last resort
+  const stillNeedDeezer = state.tracks.filter((t) => !t._resolvedBy);
+  if (stillNeedDeezer.length) {
+    log(`Pass 3/3 — Deezer Search: checking ${stillNeedDeezer.length} remaining tracks…`);
+    for (const t of stillNeedDeezer) {
+      try {
+        const hit = await deezerLookupByText(`${t.artist} ${t.title}`);
+        if (looksLikeConfidentMatch(t, hit)) { if (applyHit(t, hit, "Deezer")) deezerFixed++; }
+      } catch { /* nothing more to try */ }
+      await sleep(400);
+    }
+  }
+
+  const untouched = state.tracks.filter((t) => !t._resolvedBy).length;
   renderTrackPreview();
-  log(`MusicBrainz: ${fixed} names updated, ${unchanged} unchanged, ${failed} lookups failed.`, fixed ? "ok" : "info");
+  log(
+    `Done — MusicBrainz fixed ${mbFixed}, iTunes fixed ${itunesFixed}, Deezer fixed ${deezerFixed}; ${untouched} left as-is (already fine or no confident match anywhere).`,
+    mbFixed + itunesFixed + deezerFixed ? "ok" : "info"
+  );
   $("btnFixNamesMusicBrainz").disabled = false;
 }
 
@@ -878,7 +949,7 @@ function init() {
   $("btnSaveSettings").addEventListener("click", saveSettingsForm);
   $("btnConnectSpotify").addEventListener("click", connectSpotify);
   $("btnTransfer").addEventListener("click", runTransfer);
-  $("btnFixNamesMusicBrainz").addEventListener("click", fixNamesViaMusicBrainz);
+  $("btnFixNamesMusicBrainz").addEventListener("click", fixNamesViaLookupServices);
 
   $("libFolderInput").addEventListener("change", handleLibraryFolderInput);
   $("libPlaylistInput").addEventListener("change", handleLibraryPlaylistInput);
