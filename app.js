@@ -314,8 +314,8 @@ function exportCsv() {
 }
 
 function exportCsvSimple() {
-  const rows = [["Title", "Artist"]];
-  state.tracks.forEach((t) => rows.push([t.title, t.artist]));
+  const rows = [["Artist", "Title"]];
+  state.tracks.forEach((t) => rows.push([t.artist, t.title]));
   const name = safeFileName(state.chosenPlaylist.name) + "_simple.csv";
   downloadBlob(name, csvFrom(rows), "text/csv");
   log(`Saved ${name}`, "ok");
