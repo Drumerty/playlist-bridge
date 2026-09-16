@@ -4,6 +4,42 @@ This mirrors the `CHANGELOG` array at the top of `app.js`, which also
 drives the "what's new" panel in the app header. Update both together
 when you make a change.
 
+## 1.5.0 — 2026-09-16
+- Fixed the biggest source of wrong songs: every search result is now
+  verified before it's used. Transfers used to take the first result
+  YouTube or Deezer returned, on faith — which is how karaoke tracks,
+  covers, tribute-band versions, "sped up"/"slowed + reverb" edits and
+  radio cuts ended up in transferred playlists. Results are now checked
+  by ISRC, recording variant, primary artist, duration and title before
+  anything is added.
+- Deezer transfers now look the track up by ISRC first (the exact master
+  recording), falling back to verified search only when there's no ISRC
+  entry. Note this uses Deezer's `/track/isrc:` resource endpoint —
+  `search?q=isrc:` returns unrelated results.
+- YouTube transfers now pull several candidates and their real durations
+  (one batched `videos?part=contentDetails` call) instead of blindly
+  taking the top hit. Duration tolerance is asymmetric there: a video
+  running longer than the track is normal (official videos carry
+  intro/outro), a shorter one is still treated as a radio edit and
+  rejected.
+- Fixed: "Clean noisy tags" no longer deletes (Live), (Radio Edit),
+  (Acoustic) or (Extended Mix). Those identify a specific recording —
+  stripping them meant searching for the studio take and saving it under
+  the live track's name. Release tags like (2011 Remaster),
+  [Deluxe Edition] and [Official Video] are still stripped as before.
+- Fixed: artist names containing a slash (AC/DC) were split at the slash
+  and searched as "AC".
+- Fixed: the MusicBrainz name-fix pass joined every credited artist back
+  together, undoing the primary-artist reduction done at ingestion and
+  re-breaking every later search query.
+- Auto-fix names is far more cautious — it now requires a confident match
+  on artist, duration and variant before renaming anything, and checks
+  several lookup results instead of only the first.
+- Library check no longer counts a local karaoke or live file as having
+  found the studio track; those surface as uncertain instead.
+- Added `matcher.js`, which holds all of the above matching logic in one
+  place (exposed as `window.PBMatch`).
+
 ## 1.4.0 — 2026-09-10
 - Added: Liked Songs now shows up as an entry at the top of your playlist
   list (needs re-connecting Spotify once to grant the new

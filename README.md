@@ -34,11 +34,56 @@ Either way, the missing/uncertain results are still downloadable as CSV — that
 index.html     the page
 style.css      styling
 app.js         all the logic (auth, fetching, exporting, transferring)
+matcher.js     track identity matching — verifies search results before use
 config.js      <- put your API client IDs here
 channel.html   required by the Deezer SDK, don't rename or remove
 README.md      this file
 CHANGELOG.md   version history (mirrors the panel in the app header)
 ```
+
+## Match verification (why you stopped getting karaoke versions)
+
+Every search result is verified before it's used. Previously the app took
+the first result YouTube or Deezer returned, which is how covers, karaoke
+tracks, tribute-band recordings, "sped up"/"slowed + reverb" edits and
+radio cuts ended up in transferred playlists.
+
+Five checks, in order of strength (all in `matcher.js`):
+
+1. **ISRC** — identifies the exact master recording. Deezer transfers now
+   try `/track/isrc:...` first; a hit there is accepted outright. A
+   *mismatch* proves nothing though (labels re-register the same recording
+   per territory and per reissue), so text search stays as a fallback.
+2. **Recording variant** — `(Live)`, `(Karaoke)`, `(Radio Edit)`,
+   `(Acoustic)` are compared **both ways**. Asking for the studio take and
+   getting the live cut is rejected, and so is the reverse.
+3. **Primary artist** — normalised, not string-compared, so
+   Beyoncé/Beyonce and "Drake"/"Drake feat. Rihanna" match while
+   "Queen"/"The Piano Guys" does not.
+4. **Duration** — a radio edit or an extended mix is caught by length. On
+   YouTube the tolerance is asymmetric: a video running *longer* than the
+   track is normal (official videos have intro/outro), a *shorter* one is
+   rejected.
+5. **Title** — compared after release tags are stripped.
+
+When nothing passes, the track is reported as missing with the reason
+(`unrequested karaoke`, `shorter by 30s`, `different artist`) rather than
+something wrong being added quietly. A miss is easier to fix than a wrong
+file you don't notice for months.
+
+### Release tags vs. recording tags
+
+The "Clean noisy tags" toggle draws a line it previously didn't:
+
+| Stripped (describes the release) | Kept (describes the recording) |
+|---|---|
+| `(2011 Remaster)`, `[Deluxe Edition]` | `(Live)`, `(Live at Wembley)` |
+| `[Official Video]`, `(HD)`, `(4K)` | `(Radio Edit)`, `(Extended Mix)` |
+| `(Bonus Track)`, `(Explicit)` | `(Acoustic)`, `(Remix)` |
+
+The old list treated `live` and `radio edit` as noise and deleted them,
+which meant searching for a *different recording* than the one you saved
+and storing it under the original's name.
 
 ## Liked Songs
 

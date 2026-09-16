@@ -11,9 +11,23 @@
 // both in sync when you add an entry.
 // ---------------------------------------------------------
 
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.5.0";
 
 const CHANGELOG = [
+  {
+    version: "1.5.0",
+    date: "2026-09-16",
+    notes: [
+      "Fixed the biggest source of wrong songs: every search result is now verified before it's used. Transfers used to take the first result YouTube or Deezer returned, on faith \u2014 which is how karaoke tracks, covers, tribute-band versions, \"sped up\"/\"slowed + reverb\" edits and radio cuts ended up in transferred playlists. Results are now checked by ISRC, recording variant, primary artist, duration and title before anything is added.",
+      "Deezer transfers now look the track up by ISRC first (the exact master recording), falling back to verified search only when there's no ISRC entry. The log reports how many tracks matched exactly.",
+      "YouTube transfers now pull several candidates and their real durations instead of blindly taking the top hit, so a 3-minute radio edit or a 10-minute extended upload no longer gets added in place of the album version.",
+      "Fixed: \"Clean noisy tags\" no longer deletes (Live), (Radio Edit), (Acoustic) or (Extended Mix). Those identify a specific recording \u2014 stripping them meant searching for the studio take and saving it under the live track's name. Release tags like (2011 Remaster), [Deluxe Edition] and [Official Video] are still stripped as before.",
+      "Fixed: artist names containing a slash (AC/DC) were split at the slash and searched as \"AC\".",
+      "Fixed: the MusicBrainz name-fix pass joined every credited artist back together, undoing the primary-artist reduction and re-breaking later search queries.",
+      "Auto-fix names is far more cautious \u2014 it now needs a confident match on artist, duration and variant before renaming anything, and checks several lookup results instead of only the first.",
+      "Library check no longer counts a local karaoke or live file as having found the studio track; those now surface as uncertain instead.",
+    ],
+  },
   {
     version: "1.4.0",
     date: "2026-09-10",
@@ -341,7 +355,7 @@ async function selectPlaylist(pl) {
   // just take the whole track object.
   let url = pl.isLiked
     ? "https://api.spotify.com/v1/me/tracks?limit=50"
-    : `https://api.spotify.com/v1/playlists/${pl.id}/items?fields=items(item(id,name,artists(name),album(name),external_ids(isrc))),next&limit=100`;
+    : `https://api.spotify.com/v1/playlists/${pl.id}/items?fields=items(item(id,name,duration_ms,artists(name),album(name),external_ids(isrc))),next&limit=100`;
   const tracks = [];
 
   try {
@@ -382,6 +396,10 @@ async function selectPlaylist(pl) {
           allArtists,
           album: t.album?.name || "",
           isrc: t.external_ids?.isrc || "",
+          // Duration is the cheapest way to tell a radio edit or an
+          // extended mix from the master you actually asked for, so it
+          // gets carried through to every search verification below.
+          durationMs: typeof t.duration_ms === "number" ? t.duration_ms : null,
           spotifyUrl: t.id ? `https://open.spotify.com/track/${t.id}` : "",
         });
       }
@@ -452,30 +470,22 @@ function csvFrom(rows) {
 }
 
 // ---------- name cleanup for export/search ----------
-// Strips noise commonly found in Spotify's title field that has nothing
-// to do with identifying the track — remaster/edition tags, "Official
-// Video", live-recording notes, etc. Doesn't touch meaningful content
-// like "(feat. Artist)" or a track's actual subtitle.
-
-const NOISE_WORDS =
-  "remaster(?:ed)?(?:\\s*\\d{4})?|\\d{4}\\s*remaster(?:ed)?|" +
-  "live(?:\\s*(?:at|from|in)\\s*[^)\\]]*)?|" +
-  "mono|stereo|single version|album version|deluxe(?:\\s*edition)?|" +
-  "bonus track|radio edit|clean(?:\\s*version)?|explicit(?:\\s*version)?|" +
-  "official\\s*(?:video|audio|music video|lyric video)|lyric video|" +
-  "hd|hq|4k|visualizer|video edit|extended (?:mix|version)|original mix";
-
-// e.g. "Song Title (Remastered 2011)" / "Song Title [Official Video]"
-const NOISE_BRACKETED = new RegExp(`\\s*[\\(\\[]\\s*(?:${NOISE_WORDS})\\s*[\\)\\]]`, "gi");
-// e.g. "Song Title - Remastered 2011" (no brackets, trailing dash form)
-const NOISE_DASH_SUFFIX = new RegExp(`\\s*-\\s*(?:${NOISE_WORDS})\\s*$`, "gi");
+// Delegates to matcher.js, which draws a line the old version here did
+// not: it strips tags that describe the RELEASE and keeps tags that
+// describe the RECORDING.
+//
+//   stripped : (2011 Remaster), [Deluxe Edition], [Official Video], (HD)
+//   kept     : (Live), (Radio Edit), (Acoustic), (Extended Mix)
+//
+// The previous NOISE_WORDS list treated "live", "radio edit" and
+// "extended mix" as noise and deleted them. That meant a track you
+// explicitly saved as the live cut got searched for — and saved as —
+// the studio take under the live track's name. Those tags now survive
+// into the query and are compared in both directions before any search
+// result is accepted.
 
 function cleanTitleText(title) {
-  let t = String(title);
-  t = t.replace(NOISE_BRACKETED, "");
-  t = t.replace(NOISE_DASH_SUFFIX, "");
-  t = t.replace(/\s{2,}/g, " ").trim();
-  return t || title; // never return an empty string — fall back to original
+  return PBMatch.cleanTrackTitle(title);
 }
 
 function cleanArtistText(artist) {
@@ -503,10 +513,11 @@ function primaryArtist(artist) {
   // "La Bouche, Justus" / "La Bouche feat. Justus" often searches worse
   // than "La Bouche" alone — secondary/featured credits add noise that
   // some search backends weight too heavily. Take the lead artist only.
-  const first = String(artist)
-    .split(/\s*[,&/]\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+|\s+x\s+|\s+vs\.?\s+/i)[0]
-    .trim();
-  return first || artist;
+  //
+  // Note "/" is deliberately not a separator here (matcher.js): splitting
+  // on it turned "AC/DC" into "AC", which searched for the wrong band
+  // entirely.
+  return PBMatch.primaryArtist(artist);
 }
 
 function searchFriendly(s) {
@@ -572,29 +583,72 @@ async function musicbrainzLookupByIsrc(isrc) {
   const data = await res.json();
   const rec = data.recordings && data.recordings[0];
   if (!rec || !rec.title) return { rateLimited: false, hit: null };
-  const artist = Array.isArray(rec["artist-credit"]) ? rec["artist-credit"].map((ac) => ac.name).join(", ") : null;
-  return { rateLimited: false, hit: { title: rec.title, artist } };
+  // Keep only the lead credit rather than joining every credited artist —
+  // joining them back together undid the primary-artist reduction done at
+  // ingestion and re-broke every subsequent search query.
+  const credits = Array.isArray(rec["artist-credit"])
+    ? rec["artist-credit"].map((ac) => (ac.artist && ac.artist.name) || ac.name).filter(Boolean)
+    : [];
+  return {
+    rateLimited: false,
+    hit: {
+      title: rec.title,
+      artist: credits.length ? credits[0] : null,
+      durationMs: typeof rec.length === "number" ? rec.length : null,
+      isrc,
+    },
+  };
 }
 
+// Ask for several results, not one: the top hit is frequently a karaoke
+// or cover listing, and with only one result there's nothing to fall back
+// to when verification rejects it.
 async function itunesLookupByText(query) {
-  const url = `https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${encodeURIComponent(query)}`;
+  const url = `https://itunes.apple.com/search?media=music&entity=song&limit=6&term=${encodeURIComponent(query)}`;
   const data = await jsonpRequest(url);
-  const r = data && data.results && data.results[0];
-  return r ? { title: r.trackName, artist: r.artistName } : null;
+  const results = (data && data.results) || [];
+  return results.map((r) => ({
+    title: r.trackName,
+    artist: r.artistName,
+    durationMs: typeof r.trackTimeMillis === "number" ? r.trackTimeMillis : null,
+  }));
 }
 
 async function deezerLookupByText(query) {
-  const url = `https://api.deezer.com/search?limit=1&output=jsonp&q=${encodeURIComponent(query)}`;
+  const url = `https://api.deezer.com/search?limit=6&output=jsonp&q=${encodeURIComponent(query)}`;
   const data = await jsonpRequest(url);
-  const r = data && data.data && data.data[0];
-  return r ? { title: r.title, artist: r.artist ? r.artist.name : null } : null;
+  const results = (data && data.data) || [];
+  return results.map((r) => ({
+    title: r.title_short || r.title,
+    artist: r.artist ? r.artist.name : null,
+    // Deezer reports SECONDS, not milliseconds.
+    durationMs: PBMatch.toMilliseconds(r.duration, "s"),
+  }));
 }
 
+// Given several lookup results, return the first that survives
+// verification — or null. Used by the iTunes/Deezer name-fix passes.
+function firstVerifiedHit(track, hits) {
+  for (const hit of hits || []) {
+    if (looksLikeConfidentMatch(track, hit)) return hit;
+  }
+  return null;
+}
+
+// Gate for accepting a name-lookup result and OVERWRITING the track's
+// title/artist with it. The old version accepted anything scoring 0.4 on
+// word overlap, with no artist check, no duration check and no variant
+// check — so a karaoke listing or a cover could rename your track and
+// every later search would then look for the wrong recording.
 function looksLikeConfidentMatch(track, hit) {
   if (!hit || !hit.title) return false;
-  const a = normalizeForMatch(`${track.artist} ${track.title}`);
-  const b = normalizeForMatch(`${hit.artist || ""} ${hit.title}`);
-  return tokenSimilarity(a, b) >= 0.4;
+  const r = PBMatch.scoreCandidate(
+    { title: track.title, artist: track.artist, durationMs: track.durationMs, isrc: track.isrc },
+    { title: hit.title, artist: hit.artist || "", durationMs: hit.durationMs, isrc: hit.isrc }
+  );
+  // Renaming is destructive and hard to notice, so only "exact" (ISRC) or
+  // "confident" is allowed to rewrite what's on screen.
+  return r.verdict === "exact" || r.verdict === "confident";
 }
 
 function applyHit(track, hit, source) {
@@ -633,8 +687,8 @@ async function fixNamesViaLookupServices() {
     log(`Pass 2/3 — iTunes Search: checking ${stillNeedItunes.length} remaining tracks (~20/min limit, slow)…`);
     for (const t of stillNeedItunes) {
       try {
-        const hit = await itunesLookupByText(buildSearchQuery(t));
-        if (looksLikeConfidentMatch(t, hit)) { if (applyHit(t, hit, "iTunes")) itunesFixed++; }
+        const hit = firstVerifiedHit(t, await itunesLookupByText(buildSearchQuery(t)));
+        if (hit) { if (applyHit(t, hit, "iTunes")) itunesFixed++; }
       } catch { /* leave it for Deezer pass or as-is */ }
       await sleep(3200); // stay safely under Apple's ~20 calls/minute limit
     }
@@ -646,8 +700,8 @@ async function fixNamesViaLookupServices() {
     log(`Pass 3/3 — Deezer Search: checking ${stillNeedDeezer.length} remaining tracks…`);
     for (const t of stillNeedDeezer) {
       try {
-        const hit = await deezerLookupByText(buildSearchQuery(t));
-        if (looksLikeConfidentMatch(t, hit)) { if (applyHit(t, hit, "Deezer")) deezerFixed++; }
+        const hit = firstVerifiedHit(t, await deezerLookupByText(buildSearchQuery(t)));
+        if (hit) { if (applyHit(t, hit, "Deezer")) deezerFixed++; }
       } catch { /* nothing more to try */ }
       await sleep(400);
     }
@@ -762,14 +816,67 @@ async function transferToYoutube() {
   let added = 0, missed = 0;
   for (const t of exportableTracks()) {
     const q = encodeURIComponent(buildSearchQuery(t));
+
+    // Ask for several results instead of one. YouTube search is dense with
+    // covers, karaoke tracks, "sped up" edits and 8D-audio reuploads, and
+    // any of them can outrank the real thing — taking items[0] on faith
+    // was the main way wrong versions ended up in a transferred playlist.
     const searchRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${q}`,
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=8&q=${q}`,
       { headers: authHeader }
     );
     if (!searchRes.ok) { missed++; log(`Search failed for "${t.title}"`, "err"); continue; }
     const searchData = await searchRes.json();
-    const videoId = searchData.items && searchData.items[0] && searchData.items[0].id.videoId;
-    if (!videoId) { missed++; log(`No YouTube match for "${t.artist} - ${t.title}"`, "err"); continue; }
+    const items = (searchData && searchData.items) || [];
+    if (!items.length) { missed++; log(`No YouTube match for "${t.artist} - ${t.title}"`, "err"); continue; }
+
+    // Search results carry no duration, so fetch it for all candidates in
+    // one batched call. Duration is what separates a 3-minute radio edit
+    // or a 10-minute extended upload from the master you asked for.
+    const ids = items.map((it) => it.id && it.id.videoId).filter(Boolean);
+    const durations = {};
+    if (ids.length) {
+      try {
+        const detRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids.join(",")}`,
+          { headers: authHeader }
+        );
+        if (detRes.ok) {
+          const detData = await detRes.json();
+          (detData.items || []).forEach((v) => {
+            durations[v.id] = v.contentDetails && v.contentDetails.duration;
+          });
+        }
+      } catch { /* no durations — verification falls back to title+artist */ }
+    }
+
+    const candidates = items
+      .map((it) => PBMatch.adapters.youtube(it, durations[it.id && it.id.videoId]))
+      .filter(Boolean);
+
+    // YouTube titles are messy and its "artist" is only a channel name, so
+    // the bar is a little lower here than for Deezer — but covers,
+    // karaoke and sped-up edits are still hard-rejected by variant tags.
+    //
+    // longerToleranceMs is deliberately generous: an official music video
+    // carries 30-60s of intro/outro around the same recording. A candidate
+    // that's SHORTER than the source stays tightly bounded, because that
+    // still means a radio edit or a clip.
+    const best = PBMatch.pickBestMatch(t, candidates, {
+      minScore: 0.72,
+      toleranceMs: 5000,
+      longerToleranceMs: 75000,
+    });
+
+    if (!best.match) {
+      missed++;
+      log(`No verified YouTube match for "${t.artist} - ${t.title}" — ${candidates.length} result(s) rejected (${best.reasons.join(", ")})`, "err");
+      continue;
+    }
+    const videoId = best.match.id;
+    if (best.verdict === "uncertain" || best.verdict === "ambiguous") {
+      log(`YouTube: "${t.artist} - ${t.title}" matched loosely (${best.verdict}) — worth a listen.`, "info");
+    }
 
     const addRes = await fetch(
       "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet",
@@ -838,23 +945,72 @@ async function transferToDeezer() {
   log(`Created Deezer playlist "${state.chosenPlaylist.name}"`, "ok");
 
   const trackIds = [];
-  let missed = 0;
+  let missed = 0, byIsrc = 0, rejected = 0;
+
   for (const t of exportableTracks()) {
-    // Try a precise field-scoped query first (best when metadata is clean),
-    // then fall back to the same loosely-cleaned free-text query the other
-    // services use — the quoted exact-field search can miss on punctuation
-    // or multi-artist credits that a plain-text search handles fine.
-    const preciseQ = `track:"${cleanTitleText(t.title)}" artist:"${primaryArtist(t.artist)}"`;
-    let results = await deezerApi("/search", "GET", { q: preciseQ });
-    let hit = results && results.data && results.data[0];
-    if (!hit) {
-      results = await deezerApi("/search", "GET", { q: buildSearchQuery(t) });
-      hit = results && results.data && results.data[0];
+    let chosen = null;
+    let how = "";
+    let reportedReason = false;   // per-track, so one rejection doesn't mute later logs
+
+    // 1. ISRC first — it identifies the exact master recording, so a hit
+    //    here needs no further checking. Note this is Deezer's direct
+    //    resource endpoint; `search?q=isrc:...` returns unrelated results.
+    const isrc = PBMatch.normalizeIsrc(t.isrc);
+    if (isrc) {
+      try {
+        const exact = await deezerApi(`/track/isrc:${isrc}`, "GET");
+        if (exact && exact.id) { chosen = exact; how = "ISRC"; byIsrc++; }
+      } catch { /* no ISRC entry on Deezer — fall through to search */ }
     }
-    if (hit) trackIds.push(hit.id);
-    else { missed++; log(`No Deezer match for "${t.artist} - ${t.title}"`, "err"); }
+
+    // 2. Text search, then verify. Previously this took results.data[0]
+    //    on faith, which is exactly how karaoke and cover versions got
+    //    added to transferred playlists.
+    if (!chosen) {
+      const queries = [
+        `track:"${cleanTitleText(t.title)}" artist:"${primaryArtist(t.artist)}"`,
+        buildSearchQuery(t),
+      ];
+      const seen = new Set();
+      const candidates = [];
+      for (const q of queries) {
+        let results;
+        try { results = await deezerApi("/search", "GET", { q, limit: 10 }); } catch { continue; }
+        for (const r of (results && results.data) || []) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          candidates.push(PBMatch.adapters.deezer(r));
+        }
+        if (candidates.length >= 10) break;
+      }
+
+      const best = PBMatch.pickBestMatch(t, candidates);
+      if (best.match) {
+        chosen = best.match.raw;
+        how = best.verdict;
+        if (best.verdict === "ambiguous") {
+          log(`Deezer: "${t.artist} - ${t.title}" had two near-identical matches — took the top one, worth checking.`, "info");
+        }
+      } else if (candidates.length) {
+        rejected++;
+        reportedReason = true;
+        log(`No verified Deezer match for "${t.artist} - ${t.title}" — ${candidates.length} result(s) rejected (${best.reasons.join(", ")})`, "err");
+      }
+    }
+
+    if (chosen) {
+      trackIds.push(chosen.id);
+      if (how !== "ISRC" && how !== "confident" && how !== "exact") {
+        log(`Deezer: "${t.artist} - ${t.title}" matched with ${how} confidence.`, "info");
+      }
+    } else {
+      missed++;
+      if (!reportedReason) log(`No Deezer match for "${t.artist} - ${t.title}"`, "err");
+    }
     await sleep(120);
   }
+
+  if (byIsrc) log(`Deezer: ${byIsrc} track(s) matched exactly by ISRC.`, "ok");
 
   if (trackIds.length) {
     await deezerApi(`/playlist/${playlistId}/tracks`, "POST", { songs: trackIds.join(",") });
@@ -1004,6 +1160,10 @@ async function compareLibrary() {
   const localTokenSets = libState.localFilenames.map((name) => ({
     name,
     tokens: normalizeForMatch(name),
+    // A local "…(Karaoke).mp3" or "…(Live at Wembley).flac" shares almost
+    // every word with the studio track and used to count as found. Tag
+    // each filename so a variant mismatch can veto the word-overlap score.
+    variants: PBMatch.extractVariantTags(name.replace(/\.[a-z0-9]{2,4}$/i, "")),
   }));
 
   const missing = [];
@@ -1012,10 +1172,17 @@ async function compareLibrary() {
   for (let i = 0; i < tracks.length; i++) {
     const t = tracks[i];
     const trackTokens = normalizeForMatch(`${t.artist} ${t.title}`);
+    const trackVariants = PBMatch.extractVariantTags(t.title);
     let bestScore = 0;
     let bestFile = null;
     for (const f of localTokenSets) {
-      const score = tokenSimilarity(trackTokens, f.tokens);
+      let score = tokenSimilarity(trackTokens, f.tokens);
+      // Demote rather than discard: a variant-mismatched file is still the
+      // closest thing on disk and worth surfacing as "uncertain", but it
+      // must never be silently counted as "found".
+      if (!PBMatch.compareVariants(trackVariants, f.variants).ok) {
+        score = Math.min(score, LOW_CONFIDENCE + 0.05);
+      }
       if (score > bestScore) { bestScore = score; bestFile = f.name; }
       if (bestScore === 1) break; // can't do better than a perfect match
     }
